@@ -6,11 +6,13 @@ class MasterSecretKey:
 
 
 class OutsourcingKey:
-    def __init__(self, g1, h1, h2, g2):
+    def __init__(self, g1, h1, h2, g2, hashed_attributes):
         self.g1 = g1
         self.h1 = h1
         self.h2 = h2
         self.g2 = g2
+        self.hashed_attributes = hashed_attributes
+
 
 
 class PrivateKey:
