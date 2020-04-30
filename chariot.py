@@ -6,6 +6,9 @@ from charm.schemes.CHARIOT.public_params import PublicParams
 from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
 from hashlib import blake2b
 from numpy import array
+from itertools import combinations
+from functools import reduce
+import operator
 
 HMAC_HASH_FUNC = 'sha256'
 UTF = 'utf-8'
@@ -102,6 +105,7 @@ class CHARIOT:
         T1 = aggregate(osk.g1, osk.hashed_attributes)
 
 
+
 def aggregate(x_array, p_array):
     if len(x_array) != len(p_array):
         return -1
@@ -111,9 +115,27 @@ def aggregate(x_array, p_array):
             if x_array[j] == x_array[l]:
                 return -1
             p_array[l] = (1 / (x_array[l] - x_array[j])) * (p_array[j] - p_array[l])
-            print(p_array)
 
     return p_array[r - 1]
 
-print(aggregate([1,2,3,4,5,6,7,8,9,12,23,34,45,56,67,78,89], [11,22,33,44,55,66,77,88,99,13,24,35,46,57,68,79,80]))
 
+"""
+Polynomials can be written in factored form: (x - a1)(x - a2)...(x - an)
+or in expanded form: b1*x^n + b2*x^n-1 + ... + bn
+If we have a polynomial in its factored form, we can use this function to find the
+coefficients within the expanded form.
+Given the list of solutions to the polynomial when it is set to equal 0 
+(i.e. a1 ... an in the factored form above), this function returns the list
+of coefficients within the expanded form (b1 ... bn in the expanded form above)
+"""
+def get_polynomial_coefficients(numbers):
+    coefficients = []
+    for i in range(len(numbers), 0, -1):
+        total = 0
+        for combination in combinations(numbers, i):
+            total += reduce(operator.mul, combination, 1)
+        coefficients.append(total)
+    return coefficients
+
+
+print(get_polynomial_coefficients([2, 3, 4]))
