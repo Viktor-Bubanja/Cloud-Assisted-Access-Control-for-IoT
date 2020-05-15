@@ -1,26 +1,26 @@
+from dataclasses import dataclass
+
+@dataclass
 class MasterSecretKey:
     def __init__(self, alpha, beta, gamma):
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
 
-
+@dataclass
 class OutsourcingKey:
-    def __init__(self, g1, h1, h2, g2, hashed_attributes):
-        self.g1 = g1
-        self.h1 = h1
-        self.h2 = h2
-        self.g2 = g2
-        self.hashed_attributes = hashed_attributes
+    g1: list
+    h1: list
+    h2: list
+    g2: list
+    hashed_attributes: list
 
 
-
+@dataclass
 class PrivateKey:
-    def __init__(self, h, K):
-        self.h = h
-        self.K = K
+    h: int
+    K: int
 
-
+@dataclass
 class SecretKey:
-    def __init__(self, K):
-        self.K = K
+    K: int

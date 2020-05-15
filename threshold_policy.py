@@ -1,4 +1,6 @@
+from dataclasses import dataclass
+
+@dataclass
 class ThresholdPolicy:
-    def __init__(self, threshold, policy):
-        self.threshold = threshold
-        self.policy = policy
+    threshold: int
+    policy: int
