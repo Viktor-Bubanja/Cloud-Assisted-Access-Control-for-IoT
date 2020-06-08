@@ -3,4 +3,4 @@ from dataclasses import dataclass
 @dataclass
 class ThresholdPolicy:
     threshold: int
-    policy: int
+    policy: set

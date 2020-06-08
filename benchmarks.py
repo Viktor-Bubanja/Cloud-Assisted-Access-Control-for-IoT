@@ -1,6 +1,6 @@
 import time
 
-from charm.schemes.CHARIOT.chariot import CHARIOT
+from charm.schemes.CHARIOT.chariot import Chariot
 from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, GT, pair
 
 
@@ -28,7 +28,7 @@ def benchmark_keygen(chariot):
 
 if __name__ == "__main__":
     group = PairingGroup('SS512')
-    chariot = CHARIOT(group)
+    chariot = Chariot(group)
     benchmark_setup(chariot)
     benchmark_keygen(chariot)
 

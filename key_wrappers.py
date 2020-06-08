@@ -1,19 +1,19 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class MasterSecretKey:
-    def __init__(self, alpha, beta, gamma):
-        self.alpha = alpha
-        self.beta = beta
-        self.gamma = gamma
+    alpha: int
+    beta: int
+    gamma: int
 
 @dataclass
 class OutsourcingKey:
-    g1: list
-    h1: list
-    h2: list
-    g2: list
-    hashed_attributes: list
+    g1: tuple
+    h1: tuple
+    h2: int
+    g2: int
+    hashed_attributes: tuple
 
 
 @dataclass
@@ -24,3 +24,5 @@ class PrivateKey:
 @dataclass
 class SecretKey:
     K: int
+
+

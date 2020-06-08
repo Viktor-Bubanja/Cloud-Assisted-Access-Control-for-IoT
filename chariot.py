@@ -1,11 +1,13 @@
 import sys
 import hmac
 
+from charm.schemes.CHARIOT.commitment import Commitment
 from charm.schemes.CHARIOT.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
+from charm.schemes.CHARIOT.outsourced_signature import OutsourcedSignature
 from charm.schemes.CHARIOT.public_params import PublicParams
+from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
 from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
 from hashlib import blake2b
-from numpy import array
 from itertools import combinations
 from functools import reduce
 import operator
@@ -14,7 +16,7 @@ HMAC_HASH_FUNC = 'sha256'
 UTF = 'utf-8'
 
 
-class CHARIOT:
+class Chariot:
 
     def __init__(self, group):
         super().__init__()
@@ -40,7 +42,7 @@ class CHARIOT:
         # Randomly pick alpha, beta, gamma from Zp*
         alpha, beta, gamma = self.group.random(), self.group.random(), self.group.random()
 
-        # TODO modulo p. Don't know what p is yet.
+        # TODO modulo p.
         u = g ** beta
         vi = {g ** (alpha / (gamma ** i)) for i in range(n + 1)}
         hi = {h ** (alpha * (gamma ** i)) for i in range(n + 1)}
@@ -48,39 +50,39 @@ class CHARIOT:
         generator1 = self.group.random(G1)
         generator2 = self.group.random(G1)
 
-        g1 = array([generator1, 1, g])
-        g2 = array([1, generator2, g])
+        g1 = (generator1, 1, g)
+        g2 = (1, generator2, g)
         g3 = []
 
         for i in range(k + 1):
             xi1, xi2 = self.group.random(), self.group.random()
-            g3.append(array([generator1 ** xi1, generator2 ** xi2, g ** (xi1 + xi2)]))
+            g3.append([generator1 ** xi1, generator2 ** xi2, g ** (xi1 + xi2)])
 
         return (PublicParams(security_param=security_param,
                              attribute_universe=attribute_universe,
-                             n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=g3,
+                             n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=tuple(g3),
                              hash_function=hash_function),
                 MasterSecretKey(alpha=alpha, beta=beta, gamma=gamma))
 
     def keygen(self, params, msk, attributes):
-        K = self.group.random()  # TODO check if this K is okay
+        K = self.group.random()
         beta1 = self.group.random()
         beta2 = beta1 + msk.beta
         r = self.group.random()
 
-        hashed_attributes = [hmac.new(bytes(str(K), UTF), bytes(at, UTF), HMAC_HASH_FUNC).digest()
-                             for at in attributes]
+        hashed_attributes = tuple([hmac.new(bytes(str(K), UTF), bytes(at, UTF), HMAC_HASH_FUNC).digest()
+                                   for at in attributes])
 
-        osk_g1 = [params.g **
-                  (r / (msk.gamma + int.from_bytes(
-                      hashed_attribute,
-                      byteorder=sys.byteorder)))
-                  for hashed_attribute in hashed_attributes]
+        osk_g1 = tuple([params.g **
+                        (r / (msk.gamma + int.from_bytes(
+                            hashed_attribute,
+                            byteorder=sys.byteorder)))
+                        for hashed_attribute in hashed_attributes])
 
         osk_g2 = params.g ** beta1
 
-        osk_h1 = {params.h ** (r * (msk.gamma ** i))
-                  for i in range(1, params.n)}
+        osk_h1 = tuple([params.h ** (r * (msk.gamma ** i))
+                        for i in range(1, params.n)])
 
         osk_h2 = params.h ** ((r - beta2) * (msk.gamma ** params.n))
 
@@ -93,17 +95,71 @@ class CHARIOT:
     def request(self, signing_policy, private_key):
         t, policy = signing_policy
         K = private_key.K
-        policy = [hmac.new(bytes(str(K), UTF), bytes(at, UTF), HMAC_HASH_FUNC).digest() for at in policy]
-        return t, policy
+        policy = set([hmac.new(bytes(str(K), UTF), bytes(at, UTF), HMAC_HASH_FUNC).digest() for at in policy])
+        return ThresholdPolicy(threshold=t, policy=policy)
 
-    def sign_out(self, params, osk, hashed_policy, hashed_attribute_set):
-        common_attributes = set(hashed_policy).intersection(hashed_attribute_set)
-        if len(common_attributes) < hashed_policy.t:
+    def sign_out(self, params: PublicParams, osk: OutsourcingKey, threshold_policy: ThresholdPolicy):
+        s = len(threshold_policy.policy)
+        t = threshold_policy.threshold
+        common_attributes = [at for at in threshold_policy.policy if at in osk.hashed_attributes]
+        if len(common_attributes) < t:
             return 1
         # Find some set of size t of common attributes
-        common_attributes = set(list(common_attributes)[:hashed_policy.t])
-        T1 = aggregate(osk.g1, osk.hashed_attributes)
+        common_attributes = common_attributes[:t]
+        T1 = aggregate(osk.g1, list(osk.hashed_attributes))
+        remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
+        T2_b_coefficients = get_polynomial_coefficients(remaining_attributes)
 
+        T2_dash = osk.h2
+        for i in range(s - t):
+            T2_dash *= osk.h1[i + params.n - s + t] ** T2_b_coefficients[i]
+
+        Hs_b_coefficients = get_polynomial_coefficients(threshold_policy.policy)
+        Hs = 1
+        for i in range(s):
+            Hs *= params.hi[i] ** Hs_b_coefficients[i]
+
+        equality_term1 = self.group.pair(T2_dash, 1 / (params.vi[params.n - s + t - 1]))
+        equality_term2 = self.group.pair(T1, Hs)
+        equality_term3 = self.group.pair(params.u * osk.g2, params.hi[s - t - 1])
+        if equality_term1 * equality_term2 != equality_term3:
+            return None
+
+        r1, s1, r2, s2 = self.group.random(), self.group.random(), self.group.random(), self.group.random()
+        r_theta, s_theta = self.group.random(), self.group.random()
+
+        C_T1_dash = Commitment(r1, s1, params).calculate(T1)
+        C_T2_dash = Commitment(r2, s2, params).calculate(T2_dash)
+
+        pi_1_dash = (
+            Hs ** r1,
+            1 / (((params.u * osk.g2) ** r_theta) * (params.vi[params.n - s + t - 1] ** r2)),
+            (Hs ** s1) / (((params.u * osk.g2) ** s_theta) * (params.vi[params.n - s + t - 1] ** s2)),
+            1
+        )
+
+        pi_2_dash = (
+            params.g ** r_theta,
+            params.g ** s_theta,
+            1
+        )
+
+        g_r = osk.g2 ** r_theta
+        g_s = osk.g2 ** s_theta
+
+        C_theta_dash = Commitment(self.group.random(), self.group.random(), params)
+
+        return OutsourcedSignature(
+            C_T1_dash=C_T1_dash,
+            C_T2_dash=C_T2_dash,
+            C_theta_dash=C_theta_dash,
+            pi_1_dash=pi_1_dash,
+            pi_2_dash=pi_2_dash,
+            T2_dash=T2_dash,
+            Hs=Hs,
+            g_r=g_r,
+            g_s=g_s
+        )
 
 
 def aggregate(x_array, p_array):
@@ -122,8 +178,8 @@ def aggregate(x_array, p_array):
 """
 Polynomials can be written in factored form: (x - a1)(x - a2)...(x - an)
 or in expanded form: b1*x^n + b2*x^n-1 + ... + bn
-If we have a polynomial in its factored form, we can use this function to find the
-coefficients within the expanded form.
+This function can be used to find the coefficients within the expanded form
+of a polynomial given its factored form.
 Given the list of solutions to the polynomial when it is set to equal 0 
 (i.e. a1 ... an in the factored form above), this function returns the list
 of coefficients within the expanded form (b1 ... bn in the expanded form above)
@@ -136,6 +192,3 @@ def get_polynomial_coefficients(numbers):
             total += reduce(operator.mul, combination, 1)
         coefficients.append(total)
     return coefficients
-
-
-print(get_polynomial_coefficients([2, 3, 4]))
