@@ -4,8 +4,8 @@ from charm.schemes.CHARIOT.commitment import Commitment
 
 @dataclass
 class OutsourcedSignature:
-    C_T1_dash: tuple
-    C_T2_dash: tuple
+    C_T1_dash: Commitment
+    C_T2_dash: Commitment
     C_theta_dash: Commitment
     pi_1_dash: tuple
     pi_2_dash: tuple

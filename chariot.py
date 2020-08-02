@@ -3,9 +3,10 @@ import hmac
 
 from charm.schemes.CHARIOT.commitment import Commitment
 from charm.schemes.CHARIOT.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
-from charm.schemes.CHARIOT.outsourced_signature import OutsourcedSignature
+from charm.schemes.CHARIOT.signatures import Signature, OutsourcedSignature
 from charm.schemes.CHARIOT.public_params import PublicParams
 from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
+from charm.schemes.CHARIOT.vector import Vector
 from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
 from hashlib import blake2b
 from itertools import combinations
@@ -44,14 +45,14 @@ class Chariot:
 
         # TODO modulo p.
         u = g ** beta
-        vi = {g ** (alpha / (gamma ** i)) for i in range(n + 1)}
-        hi = {h ** (alpha * (gamma ** i)) for i in range(n + 1)}
+        vi = [g ** (alpha / (gamma ** i)) for i in range(n + 1)]
+        hi = [h ** (alpha * (gamma ** i)) for i in range(n + 1)]
 
         generator1 = self.group.random(G1)
         generator2 = self.group.random(G1)
 
-        g1 = (generator1, 1, g)
-        g2 = (1, generator2, g)
+        g1 = Vector([generator1, 1, g])
+        g2 = Vector([1, generator2, g])
         g3 = []
 
         for i in range(k + 1):
@@ -60,7 +61,7 @@ class Chariot:
 
         return (PublicParams(security_param=security_param,
                              attribute_universe=attribute_universe,
-                             n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=tuple(g3),
+                             n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=g3,
                              hash_function=hash_function),
                 MasterSecretKey(alpha=alpha, beta=beta, gamma=gamma))
 
@@ -128,26 +129,28 @@ class Chariot:
         r1, s1, r2, s2 = self.group.random(), self.group.random(), self.group.random(), self.group.random()
         r_theta, s_theta = self.group.random(), self.group.random()
 
-        C_T1_dash = Commitment(r1, s1, params).calculate(T1)
-        C_T2_dash = Commitment(r2, s2, params).calculate(T2_dash)
+        C_T1_dash = Commitment(r1, s1, T1, params)
+        C_T2_dash = Commitment(r2, s2, T2_dash, params)
 
-        pi_1_dash = (
+        pi_1_dash = Vector([
             Hs ** r1,
             1 / (((params.u * osk.g2) ** r_theta) * (params.vi[params.n - s + t - 1] ** r2)),
             (Hs ** s1) / (((params.u * osk.g2) ** s_theta) * (params.vi[params.n - s + t - 1] ** s2)),
             1
-        )
+        ])
 
-        pi_2_dash = (
+        pi_2_dash = Vector([
             params.g ** r_theta,
             params.g ** s_theta,
             1
-        )
+        ])
 
         g_r = osk.g2 ** r_theta
         g_s = osk.g2 ** s_theta
 
-        C_theta_dash = Commitment(self.group.random(), self.group.random(), params)
+        theta = params.hi[s - t - 1]
+
+        C_theta_dash = Commitment(self.group.random(), self.group.random(), params.g1, params.g2, theta)
 
         return OutsourcedSignature(
             C_T1_dash=C_T1_dash,
@@ -160,6 +163,52 @@ class Chariot:
             g_r=g_r,
             g_s=g_s
         )
+
+    """
+    :param message is a string of the form bin(integer). i.e. binary.
+    """
+
+    def sign(self, params: PublicParams, sk: PrivateKey, message: str, outsourced_signature: OutsourcedSignature):
+        T2 = outsourced_signature.T2_dash * sk.h
+        T1 = outsourced_signature.C_T1_dash
+
+        # TODO where to get vi[n - s + t] from?
+        equality_term1 = self.group.pair(T2, params.vi[params.n - s + t - 1])
+        equality_term2 = self.group.pair()
+
+        # The hashed
+        hashed_message = params.hash_function.update(message).digest()
+
+        g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]])
+
+        for mi, gi in zip(hashed_message[1:], params.g3[1:]):
+            g_3_m = g_3_m.dot(Vector(gi).power(mi))
+
+        g_m = Vector([params.g1, params.g2, g_3_m])
+
+        t1, t2, t_theta = self.group.random(), self.group.random(), self.group.random()
+
+        C_T1 = outsourced_signature.C_T1_dash.calculate().dot(
+            Vector(g_3_m).power(t1))
+
+        C_T2 = outsourced_signature.C_T2_dash.calculate().dot(
+            Vector([1, 1, sk.h])).dot(
+            Vector(g_3_m).power(t2)
+        )
+
+        C_theta = outsourced_signature.C_theta_dash.calculate().dot(Vector(g_3_m).power(t_theta))
+
+        # TODO implement modular multiplicative inverse
+        # TODO where to get v(n - s + t)?
+        pi_1 = outsourced_signature.pi_1_dash.dot(
+            Vector([
+                outsourced_signature.g_r,
+                outsourced_signature.g_s])
+        ) # Unfinished
+
+        pi_2 = outsourced_signature.pi_2_dash.dot(Vector([1, 1, params.g ** t_theta]))
+
+        return Signature(C_T1=C_T1, C_T2=C_T2, C_theta=C_theta, pi_1=pi_1, pi_2=pi_2)
 
 
 def aggregate(x_array, p_array):
@@ -184,6 +233,8 @@ Given the list of solutions to the polynomial when it is set to equal 0
 (i.e. a1 ... an in the factored form above), this function returns the list
 of coefficients within the expanded form (b1 ... bn in the expanded form above)
 """
+
+
 def get_polynomial_coefficients(numbers):
     coefficients = []
     for i in range(len(numbers), 0, -1):
