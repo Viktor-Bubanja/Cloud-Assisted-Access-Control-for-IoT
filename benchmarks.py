@@ -31,7 +31,7 @@ def benchmark_keygen(chariot):
 
 if __name__ == "__main__":
     group = PairingGroup('SS512')
-    chariot = Chariot(group, p)
+    chariot = Chariot(group, p, 8)
     benchmark_setup(chariot)
     benchmark_keygen(chariot)
 

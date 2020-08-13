@@ -31,6 +31,4 @@ class PublicParams:
     g1: Vector
     g2: Vector
     g3: list
-    hash_function: type
-
 

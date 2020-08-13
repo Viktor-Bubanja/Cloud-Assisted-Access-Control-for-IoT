@@ -11,7 +11,6 @@ from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
 from hashlib import blake2b
 from itertools import combinations
 from functools import reduce
-import operator
 
 HMAC_HASH_FUNC = 'sha256'
 UTF = 'utf-8'
@@ -20,29 +19,16 @@ UTF = 'utf-8'
 class Chariot:
     s, t = 0, 0
 
-    def __init__(self, group, p):
+    def __init__(self, group, p, k):
         super().__init__()
+        assert self.k % 8 == 0
         self.group = group
         self.p = p
+        self.k = k
 
     def setup(self, security_param, attribute_universe, n):
         # Let g, h be two generators of G.
         g, h = self.group.random(G1), self.group.random(G1)
-
-        # Let H: {0, 1)* -> {0, 1}k be a collision-resistant hash function for some k.
-        # Choosing BLAKE2b algorithm as it is fast (although still cryptographic) and allows
-        # for a specified output length (digest_size).
-        k = 8
-        assert k % 8 == 0
-        digest_size_bytes = int(k / 8)
-        hash_function = blake2b(digest_size=digest_size_bytes)
-
-        # let T be an HMAC that takes a private key, K, and an attribute at from P
-        # (the attribute universe) and produces a unique hash.
-        # Since we're using SHA256 as the hash function, which produces a 256-bit signature,
-        # and using SS512 as our elliptic curve, which has a 512-bit base field,
-        # the HMAC will output a result within the set of integers coprime to p, as required.
-        # (i.e. since all output values will be 256-bit, they will be within the 512-bit field).
 
         # Randomly pick alpha, beta, gamma from Zp*
         alpha, beta, gamma = self.group.random(), self.group.random(), self.group.random()
@@ -58,14 +44,13 @@ class Chariot:
         g2 = Vector([1, generator2, g], self.p)
         g3 = []
 
-        for i in range(k + 1):
+        for i in range(self.k + 1):
             xi1, xi2 = self.group.random(), self.group.random()
             g3.append([self.exp(generator1, xi1), self.exp(generator2, xi2), self.exp(g, self.add(xi1, xi2))])
 
         return (PublicParams(security_param=security_param,
                              attribute_universe=attribute_universe,
-                             n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=g3,
-                             hash_function=hash_function),
+                             n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=g3),
                 MasterSecretKey(alpha=alpha, beta=beta, gamma=gamma))
 
     def keygen(self, params, msk, attributes):
@@ -184,8 +169,7 @@ class Chariot:
         equality_term1 = self.group.pair(T2, params.vi[params.n - self.s + self.t - 1])
         equality_term2 = self.group.pair()
 
-        # TODO Fix. Not how hashlib works.
-        hashed_message = params.hash_function.update(message).digest()
+        hashed_message = hash_message(int(self.k / 8), bytes(message))
 
         g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]], self.p)
 
@@ -223,8 +207,7 @@ class Chariot:
         s = len(threshold_policy.policy)
         t = threshold_policy.threshold
 
-        # TODO Fix. Not how hashlib works.
-        hashed_message = params.hash_function.update(message).digest()
+        hashed_message = hash_message(int(self.k / 8), bytes(message))
 
         g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]], self.p)
         for mi, gi in zip(hashed_message[1:], params.g3[1:]):
@@ -302,6 +285,12 @@ def chain_multiply(nums, p):
         return (a * b) % p
 
     return reduce(modular_multiply, nums, 1)
+
+
+def hash_message(digest_size: int, message: bytes):
+    hash_function = blake2b(digest_size=digest_size)
+    hash_function.update(message)
+    return hash_function.digest()
 
 
 """
