@@ -19,11 +19,11 @@ UTF = 'utf-8'
 
 class Chariot:
     s, t = 0, 0
-    p = 29  # TODO change to actual prime
 
-    def __init__(self, group):
+    def __init__(self, group, p):
         super().__init__()
         self.group = group
+        self.p = p
 
     def setup(self, security_param, attribute_universe, n):
         # Let g, h be two generators of G.
@@ -32,8 +32,10 @@ class Chariot:
         # Let H: {0, 1)* -> {0, 1}k be a collision-resistant hash function for some k.
         # Choosing BLAKE2b algorithm as it is fast (although still cryptographic) and allows
         # for a specified output length (digest_size).
-        k = 10  # TODO Change placeholder k
-        hash_function = blake2b(digest_size=k)
+        k = 8
+        assert k % 8 == 0
+        digest_size_bytes = int(k / 8)
+        hash_function = blake2b(digest_size=digest_size_bytes)
 
         # let T be an HMAC that takes a private key, K, and an attribute at from P
         # (the attribute universe) and produces a unique hash.
@@ -45,21 +47,20 @@ class Chariot:
         # Randomly pick alpha, beta, gamma from Zp*
         alpha, beta, gamma = self.group.random(), self.group.random(), self.group.random()
 
-        # TODO modulo p.
-        u = g ** beta
-        vi = [g ** (alpha / (gamma ** i)) for i in range(n + 1)]
-        hi = [h ** (alpha * (gamma ** i)) for i in range(n + 1)]
+        u = self.exp(g, beta)
+        vi = [self.exp(g, alpha / (self.exp(gamma, i))) for i in range(n + 1)]
+        hi = [self.exp(h, self.multiply(alpha, self.exp(gamma, i))) for i in range(n + 1)]
 
         generator1 = self.group.random(G1)
         generator2 = self.group.random(G1)
 
-        g1 = Vector([generator1, 1, g])
-        g2 = Vector([1, generator2, g])
+        g1 = Vector([generator1, 1, g], self.p)
+        g2 = Vector([1, generator2, g], self.p)
         g3 = []
 
         for i in range(k + 1):
             xi1, xi2 = self.group.random(), self.group.random()
-            g3.append([generator1 ** xi1, generator2 ** xi2, g ** (xi1 + xi2)])
+            g3.append([self.exp(generator1, xi1), self.exp(generator2, xi2), self.exp(g, self.add(xi1, xi2))])
 
         return (PublicParams(security_param=security_param,
                              attribute_universe=attribute_universe,
@@ -70,26 +71,25 @@ class Chariot:
     def keygen(self, params, msk, attributes):
         K = self.group.random()
         beta1 = self.group.random()
-        beta2 = beta1 + msk.beta
+        beta2 = self.add(beta1, msk.beta)
         r = self.group.random()
 
         hashed_attributes = tuple([hmac.new(bytes(str(K), UTF), bytes(at, UTF), HMAC_HASH_FUNC).digest()
                                    for at in attributes])
 
-        osk_g1 = tuple([params.g **
-                        (r / (msk.gamma + int.from_bytes(
+        osk_g1 = tuple([self.exp(params.g, (r / self.add(msk.gamma, int.from_bytes(
                             hashed_attribute,
-                            byteorder=sys.byteorder)))
+                            byteorder=sys.byteorder))))
                         for hashed_attribute in hashed_attributes])
 
-        osk_g2 = params.g ** beta1
+        osk_g2 = self.exp(params.g, beta1)
 
-        osk_h1 = tuple([params.h ** (r * (msk.gamma ** i))
+        osk_h1 = tuple([self.exp(params.h, self.multiply(r, self.exp(msk.gamma, i)))
                         for i in range(1, params.n)])
 
-        osk_h2 = params.h ** ((r - beta2) * (msk.gamma ** params.n))
+        osk_h2 = self.exp(params.h, self.multiply(self.minus(r, beta2), self.exp(msk.gamma, params.n)))
 
-        sk_h1 = params.h ** (beta1 * (msk.gamma ** params.n))
+        sk_h1 = self.exp(params.h, self.multiply(beta1, self.exp(msk.gamma, params.n)))
 
         return (OutsourcingKey(g1=osk_g1, g2=osk_g2, h1=osk_h1, h2=osk_h2, hashed_attributes=hashed_attributes),
                 PrivateKey(sk_h1, K),
@@ -111,20 +111,21 @@ class Chariot:
             return 1
         # Find some set of size t of common attributes
         common_attributes = common_attributes[:t]
-        T1 = aggregate(osk.g1, list(osk.hashed_attributes))
+        T1 = self.aggregate(osk.g1, list(osk.hashed_attributes))
         remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
         # TODO calculate HMAC of attributes
-        T2_b_coefficients = get_polynomial_coefficients(remaining_attributes)
+        T2_b_coefficients = get_polynomial_coefficients(remaining_attributes, self.p)
 
         T2_dash = osk.h2
+        # TODO Does it need to be osk.h1[i + params.n - s + t - 1] instead? (i.e. -1). Surely yes.
         for i in range(s - t):
-            T2_dash *= osk.h1[i + params.n - s + t] ** T2_b_coefficients[i]
+            T2_dash = self.multiply(T2_dash, self.exp(osk.h1[i + params.n - s + t], T2_b_coefficients[i]))
 
         # TODO calculate HMAC of attributes
-        Hs = calculate_H_polynomial(threshold_policy.policy, params.hi)
+        Hs = self.calculate_H_polynomial(threshold_policy.policy, params.hi)
 
         equality_term1 = self.group.pair(T1, Hs)
-        equality_term2 = self.group.pair(params.u * osk.g2, params.hi[s - t - 1])
+        equality_term2 = self.group.pair(self.multiply(params.u, osk.g2), params.hi[s - t - 1])
         equality_term3 = self.group.pair(T2_dash, params.vi[params.n - s + t - 1])
 
         if equality_term1 != chain_multiply([equality_term2, equality_term3], self.p):
@@ -136,21 +137,27 @@ class Chariot:
         C_T1_dash = Commitment(r1, s1, T1, params.g1, params.g2)
         C_T2_dash = Commitment(r2, s2, T2_dash, params.g1, params.g2)
 
-        pi_1_dash = Vector([
-            Hs ** r1,
-            1 / (((params.u * osk.g2) ** r_theta) * (params.vi[params.n - s + t - 1] ** r2)),
-            (Hs ** s1) / (((params.u * osk.g2) ** s_theta) * (params.vi[params.n - s + t - 1] ** s2)),
-            1
-        ])
+        # TODO fix negative exponent r2
 
-        pi_2_dash = Vector([
-            params.g ** r_theta,
-            params.g ** s_theta,
-            1
-        ])
+        pi_1_dash_1 = chain_multiply([
+            self.exp(Hs, r1),
+            self.multiply(params.u, osk.g2),
+            self.exp(params.vi[params.n - s + t - 1], -r2)
+        ],
+            self.p)
 
-        g_r = osk.g2 ** r_theta
-        g_s = osk.g2 ** s_theta
+        pi_1_dash_2 = chain_multiply([
+            self.exp(Hs, s1),
+            self.exp(self.multiply(params.u, osk.g2), -s_theta),
+            self.exp(params.vi[params.n - s + t - 1], -s2)
+        ],
+            self.p)
+        pi_1_dash = Vector([pi_1_dash_1, pi_1_dash_2, 1], self.p)
+
+        pi_2_dash = Vector([self.exp(params.g, r_theta), self.exp(params.g, s_theta), 1], self.p)
+
+        g_r = self.exp(osk.g2, r_theta)
+        g_s = self.exp(osk.g2, s_theta)
 
         C_theta_dash = Commitment(self.group.random(), self.group.random(), params.hi[s - t - 1], params.g1, params.g2)
 
@@ -171,43 +178,43 @@ class Chariot:
     """
 
     def sign(self, params: PublicParams, sk: PrivateKey, message: str, outsourced_signature: OutsourcedSignature):
-        T2 = outsourced_signature.T2_dash * sk.h
+        T2 = self.multiply(outsourced_signature.T2_dash, sk.h)
         T1 = outsourced_signature.C_T1_dash
 
         equality_term1 = self.group.pair(T2, params.vi[params.n - self.s + self.t - 1])
         equality_term2 = self.group.pair()
 
-        # TODO The update function returns k bytes, not k bits
+        # TODO Fix. Not how hashlib works.
         hashed_message = params.hash_function.update(message).digest()
 
-        g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]])
+        g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]], self.p)
 
         for mi, gi in zip(hashed_message[1:], params.g3[1:]):
-            g_3_m = g_3_m.dot(Vector(gi).power(mi))
+            g_3_m = g_3_m.dot(Vector(gi, self.p).exp(mi))
 
-        g_m = Vector([params.g1, params.g2, g_3_m])
+        g_m = Vector([params.g1, params.g2, g_3_m], self.p)
 
         t1, t2, t_theta = self.group.random(), self.group.random(), self.group.random()
 
         C_T1 = outsourced_signature.C_T1_dash.calculate().dot(
-            Vector(g_3_m).power(t1))
+            Vector(g_3_m, self.p).exp(t1))
 
         C_T2 = outsourced_signature.C_T2_dash.calculate().dot(
-            Vector([1, 1, sk.h])).dot(
-            Vector(g_3_m).power(t2)
+            Vector([1, 1, sk.h], self.p)).dot(
+            Vector(g_3_m, self.p).exp(t2)
         )
 
-        C_theta = outsourced_signature.C_theta_dash.calculate().dot(Vector(g_3_m).power(t_theta))
+        C_theta = outsourced_signature.C_theta_dash.calculate().dot(Vector(g_3_m, self.p).exp(t_theta))
 
         # TODO implement modular multiplicative inverse
         # TODO where to get v(n - s + t)?
         pi_1 = outsourced_signature.pi_1_dash.dot(
             Vector([
                 outsourced_signature.g_r,
-                outsourced_signature.g_s])
+                outsourced_signature.g_s], self.p)
         )  # Unfinished
 
-        pi_2 = outsourced_signature.pi_2_dash.dot(Vector([1, 1, params.g ** t_theta]))
+        pi_2 = outsourced_signature.pi_2_dash.dot(Vector([1, 1, self.exp(params.g, t_theta)], self.p))
 
         return Signature(C_T1=C_T1, C_T2=C_T2, C_theta=C_theta, pi_1=pi_1, pi_2=pi_2)
 
@@ -216,14 +223,15 @@ class Chariot:
         s = len(threshold_policy.policy)
         t = threshold_policy.threshold
 
+        # TODO Fix. Not how hashlib works.
         hashed_message = params.hash_function.update(message).digest()
 
-        g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]])
+        g_3_m = Vector([params.g3[0][0], params.g3[0][1], params.g3[0][2]], self.p)
         for mi, gi in zip(hashed_message[1:], params.g3[1:]):
-            g_3_m = g_3_m.dot(Vector(gi).power(mi))
+            g_3_m = g_3_m.dot(Vector(gi, self.p).exp(mi))
 
         # TODO HMAC the policy
-        Hs = calculate_H_polynomial(threshold_policy.policy, params.hi)
+        Hs = self.calculate_H_polynomial(threshold_policy.policy, params.hi)
 
         pi_1_1, pi_1_2, pi_1_3 = signature.pi_1.vector
         pi_2_1, pi_2_2, pi_2_3 = signature.pi_2.vector
@@ -257,33 +265,43 @@ class Chariot:
         else:
             return 1
 
+    def calculate_H_polynomial(self, attributes, hi):
+        Hs_b_coefficients = get_polynomial_coefficients(attributes, self.p)
+        return chain_multiply([self.exp(hi[i], Hs_b_coefficients[i]) for i in range(len(attributes))], self.p)
+
+    def aggregate(self, x_array, p_array):
+        if len(x_array) != len(p_array):
+            return -1
+        r = len(x_array)
+        for j in range(r - 1):
+            for l in range(j + 1, r):
+                if x_array[j] == x_array[l]:
+                    return -1
+                p_array[l] = self.multiply(1 / self.minus(x_array[l], x_array[j]), self.minus(p_array[j], p_array[l]))
+
+        return p_array[r - 1]
+
+    def exp(self, a, b):
+        return (a ** b) % self.p
+
+    def multiply(self, a, b):
+        return (a * b) % self.p
+
+    def divide(self, a, b):
+        return (a / b) % self.p
+
+    def add(self, a, b):
+        return (a + b) % self.p
+
+    def minus(self, a, b):
+        return (a - b) % self.p
+
 
 def chain_multiply(nums, p):
     def modular_multiply(a, b):
-        return a * b % p
+        return (a * b) % p
 
     return reduce(modular_multiply, nums, 1)
-
-
-def calculate_H_polynomial(attributes, hi):
-    Hs_b_coefficients = get_polynomial_coefficients(attributes)
-    Hs = 1
-    for i in range(len(attributes)):
-        Hs *= hi[i] ** Hs_b_coefficients[i]
-    return Hs
-
-
-def aggregate(x_array, p_array):
-    if len(x_array) != len(p_array):
-        return -1
-    r = len(x_array)
-    for j in range(r - 1):
-        for l in range(j + 1, r):
-            if x_array[j] == x_array[l]:
-                return -1
-            p_array[l] = (1 / (x_array[l] - x_array[j])) * (p_array[j] - p_array[l])
-
-    return p_array[r - 1]
 
 
 """
@@ -296,11 +314,14 @@ Given the list of solutions to the polynomial when it is set to equal 0
 of coefficients within the expanded form (b1 ... bn in the expanded form above)"""
 
 
-def get_polynomial_coefficients(numbers):
+def get_polynomial_coefficients(numbers, modulus):
+    def modular_multiply(a, b):
+        return (a * b) % modulus
+
     coefficients = []
     for i in range(len(numbers), 0, -1):
         total = 0
         for combination in combinations(numbers, i):
-            total += reduce(operator.mul, combination, 1)
+            total = (total + reduce(modular_multiply, combination, 1)) % modulus
         coefficients.append(total)
     return coefficients

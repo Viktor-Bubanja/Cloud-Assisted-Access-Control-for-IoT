@@ -3,6 +3,9 @@ import time
 from charm.schemes.CHARIOT.chariot import Chariot
 from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, GT, pair
 
+# Prime number for elliptic curve SS512
+p = 8780710799663312522437781984754049815806883199414208211028653399266475630880222957078625179422662221423155858769582317459277713367317481324925129998224791
+
 
 def benchmark(repetitions, method, *args):
     total_time = 0
@@ -28,7 +31,7 @@ def benchmark_keygen(chariot):
 
 if __name__ == "__main__":
     group = PairingGroup('SS512')
-    chariot = Chariot(group)
+    chariot = Chariot(group, p)
     benchmark_setup(chariot)
     benchmark_keygen(chariot)
 
