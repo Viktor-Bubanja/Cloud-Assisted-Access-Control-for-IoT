@@ -98,22 +98,20 @@ class Chariot:
         common_attributes = common_attributes[:t]
         T1 = self.aggregate(osk.g1, list(osk.hashed_attributes))
         remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
-        # TODO calculate HMAC of attributes
+
         T2_b_coefficients = get_polynomial_coefficients(remaining_attributes, self.p)
 
         T2_dash = osk.h2
-        # TODO Does it need to be osk.h1[i + params.n - s + t - 1] instead? (i.e. -1). Surely yes.
         for i in range(s - t):
             T2_dash = self.multiply(T2_dash, self.exp(osk.h1[i + params.n - s + t], T2_b_coefficients[i]))
 
-        # TODO calculate HMAC of attributes
         Hs = self.calculate_H_polynomial(threshold_policy.policy, params.hi)
 
         equality_term1 = self.group.pair(T1, Hs)
         equality_term2 = self.group.pair(self.multiply(params.u, osk.g2), params.hi[s - t - 1])
         equality_term3 = self.group.pair(T2_dash, params.vi[params.n - s + t - 1])
 
-        if equality_term1 != chain_multiply([equality_term2, equality_term3], self.p):
+        if equality_term1 != self.multiply(equality_term2, equality_term3):
             return None
 
         r1, s1, r2, s2 = self.group.random(), self.group.random(), self.group.random(), self.group.random()
@@ -122,12 +120,12 @@ class Chariot:
         C_T1_dash = Commitment(r1, s1, T1, params.g1, params.g2)
         C_T2_dash = Commitment(r2, s2, T2_dash, params.g1, params.g2)
 
-        # TODO fix negative exponent r2
+        # TODO Check inverse
 
         pi_1_dash_1 = chain_multiply([
             self.exp(Hs, r1),
             self.multiply(params.u, osk.g2),
-            self.exp(params.vi[params.n - s + t - 1], -r2)
+            1 / self.exp(params.vi[params.n - s + t - 1], r2)
         ],
             self.p)
 
@@ -166,8 +164,12 @@ class Chariot:
         T2 = self.multiply(outsourced_signature.T2_dash, sk.h)
         T1 = outsourced_signature.C_T1_dash
 
-        equality_term1 = self.group.pair(T2, params.vi[params.n - self.s + self.t - 1])
-        equality_term2 = self.group.pair()
+        equality_term1 = self.group.pair(T1, outsourced_signature.Hs)
+        equality_term2 = self.group.pair(params.u, params.hi[self.s - self.t - 1])
+        equality_term3 = self.group.pair(T2, params.vi[params.n - self.s + self.t - 1])
+
+        if equality_term1 != self.multiply(equality_term2, equality_term3):
+            return None
 
         hashed_message = hash_message(int(self.k / 8), bytes(message))
 
@@ -190,13 +192,20 @@ class Chariot:
 
         C_theta = outsourced_signature.C_theta_dash.calculate().dot(Vector(g_3_m, self.p).exp(t_theta))
 
-        # TODO implement modular multiplicative inverse
-        # TODO where to get v(n - s + t)?
+        # TODO check inverses
         pi_1 = outsourced_signature.pi_1_dash.dot(
             Vector([
-                outsourced_signature.g_r,
-                outsourced_signature.g_s], self.p)
-        )  # Unfinished
+                1 / outsourced_signature.g_r,
+                1 / outsourced_signature.g_s,
+                chain_multiply(
+                    [
+                        self.exp(outsourced_signature.Hs, t1),
+                        1 / self.exp(params.u, t_theta),
+                        1 / self.exp(params.vi[params.n - self.s + self.t - 1], t2)
+                    ], self.p)
+            ], self.p
+            )
+        )
 
         pi_2 = outsourced_signature.pi_2_dash.dot(Vector([1, 1, self.exp(params.g, t_theta)], self.p))
 
@@ -213,8 +222,12 @@ class Chariot:
         for mi, gi in zip(hashed_message[1:], params.g3[1:]):
             g_3_m = g_3_m.dot(Vector(gi, self.p).exp(mi))
 
-        # TODO HMAC the policy
-        Hs = self.calculate_H_polynomial(threshold_policy.policy, params.hi)
+        hashed_policy = set([
+            hmac.new(bytes(str(secret_key), UTF), bytes(at, UTF), HMAC_HASH_FUNC).digest()
+            for at in threshold_policy.policy]
+        )
+
+        Hs = self.calculate_H_polynomial(hashed_policy, params.hi)
 
         pi_1_1, pi_1_2, pi_1_3 = signature.pi_1.vector
         pi_2_1, pi_2_2, pi_2_3 = signature.pi_2.vector
