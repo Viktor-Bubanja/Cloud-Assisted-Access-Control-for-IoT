@@ -178,8 +178,6 @@ class Chariot:
         for mi, gi in zip(hashed_message[1:], params.g3[1:]):
             g_3_m = g_3_m.dot(Vector(gi, self.p).exp(mi))
 
-        g_m = Vector([params.g1, params.g2, g_3_m], self.p)
-
         t1, t2, t_theta = self.group.random(), self.group.random(), self.group.random()
 
         C_T1 = outsourced_signature.C_T1_dash.calculate().dot(
@@ -303,7 +301,14 @@ def chain_multiply(nums, p):
 def hash_message(digest_size: int, message: bytes):
     hash_function = blake2b(digest_size=digest_size)
     hash_function.update(message)
-    return hash_function.digest()
+    hashed_bytes = hash_function.digest()
+    binary_string = ""
+    for number in hashed_bytes:
+        # Remove the '0b' prefix from binary and fill up remaining bits to form byte
+        bits = bin(number)[2:].zfill(8)
+        binary_string += bits
+
+    return binary_string
 
 
 """
