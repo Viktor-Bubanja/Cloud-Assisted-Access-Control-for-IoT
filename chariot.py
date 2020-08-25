@@ -21,7 +21,7 @@ class Chariot:
 
     def __init__(self, group, p, k):
         super().__init__()
-        assert self.k % 8 == 0
+        assert k % 8 == 0
         self.group = group
         self.p = p
         self.k = k
@@ -125,7 +125,7 @@ class Chariot:
         pi_1_dash_1 = chain_multiply([
             self.exp(Hs, r1),
             self.multiply(params.u, osk.g2),
-            1 / self.exp(params.vi[params.n - s + t - 1], r2)
+            self.exp(params.vi[params.n - s + t - 1], -r2)
         ],
             self.p)
 
@@ -198,8 +198,8 @@ class Chariot:
                 chain_multiply(
                     [
                         self.exp(outsourced_signature.Hs, t1),
-                        1 / self.exp(params.u, t_theta),
-                        1 / self.exp(params.vi[params.n - self.s + self.t - 1], t2)
+                        self.exp(params.u, -t_theta),
+                        self.exp(params.vi[params.n - self.s + self.t - 1], -t2)
                     ], self.p)
             ], self.p
             )
