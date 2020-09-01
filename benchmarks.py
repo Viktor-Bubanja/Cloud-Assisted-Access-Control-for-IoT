@@ -4,8 +4,6 @@ from charm.schemes.CHARIOT.chariot import Chariot
 from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
 from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, GT, pair
 
-# Prime number for elliptic curve SS512
-p = 8780710799663312522437781984754049815806883199414208211028653399266475630880222957078625179422662221423155858769582317459277713367317481324925129998224791
 
 
 def benchmark(repetitions, method, *args):
@@ -32,21 +30,29 @@ def benchmark_keygen(chariot):
 
 if __name__ == "__main__":
     group = PairingGroup('SS512')
-    chariot = Chariot(group, p, 8)
+    k = 8
+    chariot = Chariot(group, k)
     security_param = 2  # TODO what is this
-    attribute_universe = [1, 2, 3, 4, 5]
-    n = 3  # Upper bound of size of threshold policies
+    attribute_universe = [1, 2, 3, 4]
+    n = 5  # Upper bound of size of threshold policies
     public_params, master_secret_key = chariot.setup(security_param, attribute_universe, n)
+
+    print(f"Public parameters: {public_params}")
+    print(f"Master secret key: {master_secret_key}")
 
     attribute_set = [1, 2]
     osk, private_key, secret_key = chariot.keygen(public_params, master_secret_key, attribute_set)
+
+    print(f"osk: {osk}")
+    print(f"private_key: {private_key}")
+    print(f"secret_key: {secret_key}")
 
     t = 2
     policy = {1, 2, 3, 4}
     threshold_policy = ThresholdPolicy(t, policy)
     HMAC_hashed_threshold_policy = chariot.request(threshold_policy, private_key)
 
-    outsourced_signature = chariot.sign_out(public_params, osk, threshold_policy)
+    outsourced_signature = chariot.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
 
     message = "123"
     signature = chariot.sign(public_params, private_key, message, outsourced_signature)
