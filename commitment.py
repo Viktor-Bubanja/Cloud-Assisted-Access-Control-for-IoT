@@ -10,4 +10,9 @@ class Commitment:
         self.theta = theta
 
     def calculate(self):
-        return Vector([1, 1, self.theta]).dot(self.g1.power(self.r_theta)).dot(self.g2.power(self.s_theta))
+        return Vector([1, 1, self.theta]).dot(self.g1.exp(self.r_theta)).dot(self.g2.exp(self.s_theta))
+
+    def __getitem__(self, key):
+        if key < 0 or key > 2:
+            raise IndexError
+        return self.theta[key]

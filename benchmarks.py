@@ -1,6 +1,7 @@
 import time
 
 from charm.schemes.CHARIOT.chariot import Chariot
+from charm.schemes.CHARIOT.exceptions import EqualityDoesNotHold
 from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
 from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, GT, pair
 
@@ -29,38 +30,39 @@ def benchmark_keygen(chariot):
 
 
 if __name__ == "__main__":
-    group = PairingGroup('SS512')
-    k = 8
-    chariot = Chariot(group, k)
-    security_param = 2  # TODO what is this
-    attribute_universe = [1, 2, 3, 4]
-    n = 5  # Upper bound of size of threshold policies
-    public_params, master_secret_key = chariot.setup(security_param, attribute_universe, n)
+    fail = True
+    for _ in range(1):
+        try:
+            group = PairingGroup('SS512')
+            k = 8
+            chariot = Chariot(group, k)
+            security_param = 2  # TODO what is this
+            attribute_universe = [1, 2, 3, 4]
+            n = 4  # Upper bound of size of threshold policies
+            public_params, master_secret_key = chariot.setup(security_param, attribute_universe, n)
 
-    print(f"Public parameters: {public_params}")
-    print(f"Master secret key: {master_secret_key}")
 
-    attribute_set = [1, 2]
-    osk, private_key, secret_key = chariot.keygen(public_params, master_secret_key, attribute_set)
+            attribute_set = [1, 2]
+            osk, private_key, secret_key = chariot.keygen(public_params, master_secret_key, attribute_set)
 
-    print(f"osk: {osk}")
-    print(f"private_key: {private_key}")
-    print(f"secret_key: {secret_key}")
 
-    t = 2
-    policy = {1, 2, 3, 4}
-    threshold_policy = ThresholdPolicy(t, policy)
-    HMAC_hashed_threshold_policy = chariot.request(threshold_policy, private_key)
+            t = 2
+            policy = {1, 2, 3, 4}
+            threshold_policy = ThresholdPolicy(t, policy)
+            HMAC_hashed_threshold_policy = chariot.request(threshold_policy, private_key)
 
-    outsourced_signature = chariot.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
+            outsourced_signature = chariot.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
 
-    message = "123"
-    signature = chariot.sign(public_params, private_key, message, outsourced_signature)
+            message = "123"
+            signature = chariot.sign(public_params, private_key, message, outsourced_signature)
 
-    output = chariot.verify(public_params, secret_key, message, signature, threshold_policy)
+            output = chariot.verify(public_params, secret_key, message, signature, threshold_policy)
 
-    print(output)
-
+            fail = False
+            break
+        except EqualityDoesNotHold:
+            pass
+    print(f"Algorithm failed: {fail}")
 
 
 
