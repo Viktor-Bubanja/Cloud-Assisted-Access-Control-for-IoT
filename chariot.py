@@ -32,6 +32,7 @@ class Chariot:
     T2_b_coefficients = 0
     product2 = 0
     product1 = 0
+    infinite_element = 0
 
     def __init__(self, group, k):
         assert k % 8 == 0
@@ -48,6 +49,8 @@ class Chariot:
         self.alpha = alpha # TODO delete
         self.gamma = gamma # TODO delete
 
+        self.infinite_element = self.group.random(G1) ** p
+
         u = g ** beta
         vi = [g ** (alpha / (gamma ** i)) for i in range(n + 1)]
         hi = [h ** (alpha * (gamma ** i)) for i in range(n + 1)]
@@ -55,10 +58,10 @@ class Chariot:
         generator1 = self.group.random(G1)
         generator2 = self.group.random(G2)
 
-        # g1 = Vector([generator1, self.group.random(G1) ** p, g])
-        # g2 = Vector([self.group.random(G1) ** p, generator2, g])
-        g1 = Vector([generator1, 1, g])
-        g2 = Vector([1, generator2, g])
+        g1 = Vector([generator1, self.group.random(G1) ** p, g])
+        g2 = Vector([self.group.random(G1) ** p, generator2, g])
+        # g1 = Vector([generator1, 1, g])
+        # g2 = Vector([1, generator2, g])
         g3 = []
 
         for i in range(self.k + 1):
@@ -223,8 +226,8 @@ class Chariot:
         r1, s1, r2, s2 = self.group.random(), self.group.random(), self.group.random(), self.group.random()
         r_theta, s_theta = self.group.random(), self.group.random()
 
-        C_T1_dash = Commitment(r1, s1, T1, params.g1, params.g2)
-        C_T2_dash = Commitment(r2, s2, T2_dash, params.g1, params.g2)
+        C_T1_dash = Commitment(self.infinite_element, self.infinite_element, r1, s1, T1, params.g1, params.g2)
+        C_T2_dash = Commitment(self.infinite_element, self.infinite_element, r2, s2, T2_dash, params.g1, params.g2)
 
         pi_1_dash_1 = (Hs ** r1) * ((params.u * osk.g2) ** -r_theta) * (params.vi[params.n - s + t] ** -r2)
         pi_1_dash_2 = (Hs ** s1) * ((params.u * osk.g2) ** -s_theta) * (params.vi[params.n - s + t] ** -s2)
@@ -235,7 +238,7 @@ class Chariot:
         g_r = osk.g2 ** r_theta
         g_s = osk.g2 ** s_theta
 
-        C_theta_dash = Commitment(self.group.random(), self.group.random(), params.hi[s - t], params.g1, params.g2)
+        C_theta_dash = Commitment(self.infinite_element, self.infinite_element, self.group.random(), self.group.random(), params.hi[s - t], params.g1, params.g2)
 
         return OutsourcedSignature(
             C_T1_dash=C_T1_dash,
@@ -350,8 +353,10 @@ class Chariot:
 
         t1, t2, t_theta = self.group.random(), self.group.random(), self.group.random()
 
-        C_T1 = outsourced_signature.C_T1_dash.calculate().dot(
-            g_3_m.exp(t1))
+        a = outsourced_signature.C_T1_dash.calculate()
+        b = a.dot(g_3_m.exp(t1))
+
+        C_T1 = outsourced_signature.C_T1_dash.calculate().dot(g_3_m.exp(t1))
 
         C_T2 = outsourced_signature.C_T2_dash.calculate().dot(
             Vector([1, 1, sk.h])).dot(
