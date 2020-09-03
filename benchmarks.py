@@ -30,7 +30,6 @@ def benchmark_keygen(chariot):
 
 
 if __name__ == "__main__":
-    fail = True
     for _ in range(1):
         try:
             group = PairingGroup('SS512')
@@ -58,11 +57,12 @@ if __name__ == "__main__":
 
             output = chariot.verify(public_params, secret_key, message, signature, threshold_policy)
 
-            fail = False
+            success = output == 0
             break
         except EqualityDoesNotHold:
+            success = False
             pass
-    print(f"Algorithm failed: {fail}")
+    print(f"Algorithm succeeded: {success}")
 
 
 
