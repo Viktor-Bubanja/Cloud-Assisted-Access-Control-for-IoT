@@ -34,26 +34,26 @@ if __name__ == "__main__":
     for _ in range(1):
         try:
             group = PairingGroup('SS512')
-            k = 8
+            k = 16
             chariot = Chariot(group, k)
             security_param = 2  # TODO what is this
-            attribute_universe = [1, 2, 3, 4]
-            n = 4  # Upper bound of size of threshold policies
+            attribute_universe = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+            n = 7  # Upper bound of size of threshold policies
             public_params, master_secret_key = chariot.setup(security_param, attribute_universe, n)
 
 
-            attribute_set = [1, 2]
+            attribute_set = [1, 2, 4, 5, 6, 7]
             osk, private_key, secret_key = chariot.keygen(public_params, master_secret_key, attribute_set)
 
 
-            t = 2
-            policy = {1, 2, 3, 4}
+            t = 6
+            policy = {1, 2, 3, 4, 5, 6, 7}
             threshold_policy = ThresholdPolicy(t, policy)
             HMAC_hashed_threshold_policy = chariot.request(threshold_policy, private_key)
 
             outsourced_signature = chariot.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
 
-            message = "123"
+            message = "abcd"
             signature = chariot.sign(public_params, private_key, message, outsourced_signature)
 
             output = chariot.verify(public_params, secret_key, message, signature, threshold_policy)
