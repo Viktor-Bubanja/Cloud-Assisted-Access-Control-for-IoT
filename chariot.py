@@ -137,16 +137,27 @@ class Chariot:
 
 
 
-        # TODO Testing aggregate
-        # FAILS
-        T1_aggregate = self.aggregate(osk.g1, list(osk.hashed_attributes))
-
         F_common_at_polynomial = reduce(
             operator.mul,
             [self.gamma + at for at in common_attributes]
         )
 
+
+
+
+
         T1 = params.g ** (self.r / F_common_at_polynomial)
+
+        # TODO Testing aggregate
+        # FAILS
+        T1_aggregate = self.aggregate(list(osk.hashed_attributes), osk.g1)
+
+        is_aggregate_correct = T1_aggregate == T1
+
+        if is_aggregate_correct:
+            print("Aggregate is correct SUCCESS")
+        else:
+            print("Aggregate is not correct FAIL")
 
         remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
 
@@ -654,6 +665,7 @@ class Chariot:
         return reduce(operator.mul, [hi[i] * Hs_b_coefficients[i] for i in range(len(Hs_b_coefficients))])
 
     def aggregate(self, x_array, p_array) -> int:
+        p_array = list(p_array)
         if len(x_array) != len(p_array):
             return -1
         r = len(x_array)
@@ -661,7 +673,8 @@ class Chariot:
             for l in range(j + 1, r):
                 if x_array[j] == x_array[l]:
                     return -1
-                p_array[l] = (1 / (x_array[l] - x_array[j])) * (p_array[j] - p_array[l])
+                exponent = 1 / (x_array[l] - x_array[j])
+                p_array[l] = (p_array[j] ** exponent) - (p_array[l] ** exponent)
 
         return p_array[r - 1]
 
