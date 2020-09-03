@@ -216,42 +216,27 @@ class Chariot:
         pi_2_1, pi_2_2, pi_2_3 = signature.pi_2.elements
 
 
-
-
-
-        equality_term2_1 = pair(params.g, signature.C_theta[2])
-        equality_term2_2 = pair(params.g, self.infinite_element)
-        equality_term2_3 = pair(pi_2_1, params.g1[2])
-        equality_term2_4 = pair(pi_2_2, params.g2[2])
-        equality_term2_5 = pair(pi_2_3, g_3_m[2])
-        if equality_term2_1 != equality_term2_2 * equality_term2_3 * equality_term2_4 * equality_term2_5:
-            print("FAILED")
-
-
-
-
-
         for i in range(3):
-            equality_term1_1 = pair(Hs, signature.C_T1[i])
-            equality_term1_2 = pair(params.u, signature.C_theta[i])
-            equality_term1_3 = pair(params.vi[params.n - self.s + self.t], signature.C_T2[i])
-            equality_term1_4 = pair(pi_1_1, params.g1[i])
-            equality_term1_5 = pair(pi_1_2, params.g2[i])
-            equality_term1_6 = pair(pi_1_3, g_3_m[i])
-            if equality_term1_1 != (
-                    equality_term1_2 *
-                    equality_term1_3 *
-                    equality_term1_4 *
-                    equality_term1_5 *
-                    equality_term1_6):
+            equality_1_left = pair(Hs, signature.C_T1[i])
+            equality_1_right = (
+                pair(params.u, signature.C_theta[i]) *
+                pair(params.vi[params.n - self.s + self.t], signature.C_T2[i]) *
+                pair(pi_1_1, params.g1[i]) *
+                pair(pi_1_2, params.g2[i]) *
+                pair(pi_1_3, g_3_m[i])
+            )
+            if equality_1_left != equality_1_right:
                 return 1
 
-            equality_term2_1 = pair(params.g, signature.C_theta[i])
-            equality_term2_2 = pair(params.g, self.infinite_element)
-            equality_term2_3 = pair(pi_2_1, params.g1[i])
-            equality_term2_4 = pair(pi_2_2, params.g2[i])
-            equality_term2_5 = pair(pi_2_3, g_3_m[i])
-            if equality_term2_1 != equality_term2_2 * equality_term2_3 * equality_term2_4 * equality_term2_5:
+            equality_2_left = pair(params.g, signature.C_theta[i])
+
+            equality_2_right = (
+                pair(params.g, self.infinite_element if i != 2 else params.hi[self.s - self.t]) *
+                pair(pi_2_1, params.g1[i]) *
+                pair(pi_2_2, params.g2[i]) *
+                pair(pi_2_3, g_3_m[i])
+            )
+            if equality_2_left != equality_2_right:
                 return 1
 
         return 0
