@@ -1,3 +1,4 @@
+import secrets
 import sys
 import hmac
 import operator
@@ -55,7 +56,7 @@ class Chariot:
                 MasterSecretKey(alpha=alpha, beta=beta, gamma=gamma))
 
     def keygen(self, params, msk, attributes) -> (OutsourcingKey, PrivateKey, SecretKey):
-        K = 10  # TODO check secret key
+        K = secrets.SystemRandom().randint(1, 100)  # Secure random key
         beta1 = self.group.random()
 
         beta2 = msk.beta + beta1
@@ -98,9 +99,8 @@ class Chariot:
 
         # Find some set of size t of common attributes
         common_attributes = common_attributes[:t]
-        # T1 = self.aggregate(osk.g1, list(osk.hashed_attributes))  # TODO uncomment later.
 
-        T1 = self.aggregate(list(osk.hashed_attributes), osk.g1)
+        T1 = aggregate(list(osk.hashed_attributes), osk.g1)
 
         remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
 
@@ -111,7 +111,7 @@ class Chariot:
         for i in range(s - t):
             T2_dash = T2_dash * (osk.h1[i + params.n - s + t - 1] ** T2_b_coefficients[i])
 
-        Hs = self.calculate_polynomial(threshold_policy.policy, params.hi)
+        Hs = calculate_polynomial(threshold_policy.policy, params.hi)
 
         equality_term1 = pair(T1, Hs)
         equality_term2 = pair(params.u * osk.g2, params.hi[s - t])
@@ -210,7 +210,7 @@ class Chariot:
 
         hashed_policy = set([self.calculate_HMAC(secret_key.K, at) for at in threshold_policy.policy])
 
-        Hs = self.calculate_polynomial(hashed_policy, params.hi)
+        Hs = calculate_polynomial(hashed_policy, params.hi)
 
         pi_1_1, pi_1_2, pi_1_3 = signature.pi_1.elements
         pi_2_1, pi_2_2, pi_2_3 = signature.pi_2.elements
@@ -226,7 +226,7 @@ class Chariot:
                 pair(pi_1_3, g_3_m[i])
             )
             if equality_1_left != equality_1_right:
-                return 1
+                return 1  # Corresponds to failed completion
 
             equality_2_left = pair(params.g, signature.C_theta[i])
 
@@ -237,29 +237,11 @@ class Chariot:
                 pair(pi_2_3, g_3_m[i])
             )
             if equality_2_left != equality_2_right:
-                return 1
+                return 1  # Corresponds to failed completion
 
-        return 0
+        return 0  # Corresponds to successful completion
 
 
-    def calculate_polynomial(self, attributes, hi) -> int:
-        Hs_b_coefficients = get_polynomial_coefficients(attributes)
-        Hs_b_coefficients.append(1)
-        return reduce(operator.mul, [hi[i] * Hs_b_coefficients[i] for i in range(len(Hs_b_coefficients))])
-
-    def aggregate(self, x_array, p_array) -> int:
-        p_array = list(p_array)
-        if len(x_array) != len(p_array):
-            return -1
-        r = len(x_array)
-        for j in range(r - 1):
-            for l in range(j + 1, r):
-                if x_array[j] == x_array[l]:
-                    return -1
-                exponent = 1 / (x_array[l] - x_array[j])
-                p_array[l] = (p_array[j] ** exponent) - (p_array[l] ** exponent)
-
-        return p_array[r - 1]
 
     def calculate_HMAC(self, secret_key: int, message: int):
         hashed_message = hmac.new(bytes(secret_key), bytes(message), HMAC_HASH_FUNC).digest()
@@ -297,3 +279,23 @@ def get_polynomial_coefficients(numbers) -> list:
             total += reduce(operator.mul, combination, 1)
         coefficients.append(total)
     return coefficients
+
+def calculate_polynomial(attributes, hi) -> int:
+    Hs_b_coefficients = get_polynomial_coefficients(attributes)
+    Hs_b_coefficients.append(1)
+    return reduce(operator.mul, [hi[i] * Hs_b_coefficients[i] for i in range(len(Hs_b_coefficients))])
+
+
+def aggregate(x_array, p_array) -> int:
+    p_array = list(p_array)
+    if len(x_array) != len(p_array):
+        return -1
+    r = len(x_array)
+    for j in range(r - 1):
+        for l in range(j + 1, r):
+            if x_array[j] == x_array[l]:
+                return -1
+            exponent = 1 / (x_array[l] - x_array[j])
+            p_array[l] = (p_array[j] ** exponent) - (p_array[l] ** exponent)
+
+    return p_array[r - 1]
