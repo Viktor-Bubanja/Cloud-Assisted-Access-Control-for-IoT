@@ -4,13 +4,14 @@ import hmac
 import operator
 
 from charm.schemes.CHARIOT.commitment import Commitment
-from charm.schemes.CHARIOT.exceptions import NotEnoughMatchingAttributes, EqualityDoesNotHold
-from charm.schemes.CHARIOT.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
-from charm.schemes.CHARIOT.signatures import Signature, OutsourcedSignature
-from charm.schemes.CHARIOT.public_params import PublicParams
-from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
+from charm.schemes.CHARIOT.exceptions.equality_does_not_hold import EqualityDoesNotHold
+from charm.schemes.CHARIOT.exceptions.not_enough_matching_attributes import NotEnoughMatchingAttributes
+from charm.schemes.CHARIOT.wrapper_classes.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
+from charm.schemes.CHARIOT.wrapper_classes.signatures import Signature, OutsourcedSignature
+from charm.schemes.CHARIOT.wrapper_classes.public_params import PublicParams
+from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
 from charm.schemes.CHARIOT.vector import Vector
-from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
+from charm.toolbox.pairinggroup import ZR, G1, G2, pair
 from hashlib import blake2b
 from itertools import combinations
 from functools import reduce

@@ -1,0 +1,2 @@
+class EqualityDoesNotHold(Exception):
+    pass

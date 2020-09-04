@@ -1,9 +1,9 @@
 import time
 
 from charm.schemes.CHARIOT.chariot import Chariot
-from charm.schemes.CHARIOT.exceptions import EqualityDoesNotHold
-from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
-from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, GT, pair
+from charm.schemes.CHARIOT.exceptions.equality_does_not_hold import EqualityDoesNotHold
+from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
+from charm.toolbox.pairinggroup import PairingGroup
 
 
 def benchmark(repetitions, method, *args):
