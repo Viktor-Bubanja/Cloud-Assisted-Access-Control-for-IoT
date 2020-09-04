@@ -6,7 +6,6 @@ from charm.schemes.CHARIOT.threshold_policy import ThresholdPolicy
 from charm.toolbox.pairinggroup import PairingGroup, ZR, G1, G2, GT, pair
 
 
-
 def benchmark(repetitions, method, *args):
     total_time = 0
     for i in range(repetitions):
@@ -33,12 +32,12 @@ if __name__ == "__main__":
     for _ in range(1):
         try:
             group = PairingGroup('SS512')
+            p = 730750818665451621361119245571504901405976559617
             k = 16
-            chariot = Chariot(group, k)
-            security_param = 2  # TODO what is this
+            chariot = Chariot(group, p, k)
             attribute_universe = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
             n = 7  # Upper bound of size of threshold policies
-            public_params, master_secret_key = chariot.setup(security_param, attribute_universe, n)
+            public_params, master_secret_key = chariot.setup(attribute_universe, n)
 
 
             attribute_set = [1, 2, 4, 5, 6, 7]
