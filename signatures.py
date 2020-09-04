@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from charm.schemes.CHARIOT.commitment import Commitment
 from charm.schemes.CHARIOT.vector import Vector
 
-
 @dataclass
 class OutsourcedSignature:
     C_T1_dash: Commitment

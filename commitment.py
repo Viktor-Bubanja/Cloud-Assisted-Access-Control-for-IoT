@@ -1,6 +1,5 @@
 from charm.schemes.CHARIOT.vector import Vector
 
-
 class Commitment:
     def __init__(self, r_theta: int, s_theta: int, theta: int, g1: Vector, g2: Vector):
         self.r_theta = r_theta

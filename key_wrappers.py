@@ -15,7 +15,6 @@ class OutsourcingKey:
     g2: int
     hashed_attributes: tuple
 
-
 @dataclass
 class PrivateKey:
     h: int
@@ -24,5 +23,3 @@ class PrivateKey:
 @dataclass
 class SecretKey:
     K: int
-
-
