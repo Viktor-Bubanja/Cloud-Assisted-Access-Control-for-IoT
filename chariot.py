@@ -36,6 +36,15 @@ class Chariot:
         self.identity_element = self.group.random(G1) ** p  # The elliptic curve's "point at infinity"
 
 
+    def call(self, attribute_universe, attribute_set, threshold_policy: ThresholdPolicy, message, n):
+        public_params, master_secret_key = self.setup(attribute_universe, n)
+        osk, private_key, secret_key = self.keygen(public_params, master_secret_key, attribute_set)
+        HMAC_hashed_threshold_policy = self.request(threshold_policy, private_key)
+        outsourced_signature = self.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
+        signature = self.sign(public_params, private_key, message, outsourced_signature)
+        verified = self.verify(public_params, secret_key, message, signature, threshold_policy)
+        return verified == 0
+
     """
     Responsible for initializing the public parameters of the protocol and the master secret key.
     """

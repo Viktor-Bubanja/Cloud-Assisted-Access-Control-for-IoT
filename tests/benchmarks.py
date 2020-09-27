@@ -1,7 +1,6 @@
 import time
 
 from charm.schemes.CHARIOT.chariot import Chariot
-from charm.schemes.CHARIOT.exceptions.equality_does_not_hold import EqualityDoesNotHold
 from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
 from charm.toolbox.pairinggroup import PairingGroup
 
@@ -10,60 +9,47 @@ def benchmark(repetitions, method, *args):
     total_time = 0
     for i in range(repetitions):
         start = time.process_time()
-        method(*args)
+        result = method(*args)
         total_time += time.process_time() - start
-    return total_time / repetitions
-
-
-def benchmark_setup(chariot):
-    repetitions = 20
-    security_param, universe, upper_bound = 0, None, 5
-    average = benchmark(repetitions, chariot.setup, security_param, universe, upper_bound)
-    print("average time taken for setup: {:.5f}".format(average))
-
-
-def benchmark_keygen(chariot):
-    public_params, msk = chariot.setup(0, None, 5)
-    average = benchmark(20, chariot.keygen, public_params, msk, ["a", "b", "c"])
-    print("average time taken for keygen: {:.5f}".format(average))
-
-
-if __name__ == "__main__":
-    for _ in range(1):
-        try:
-            group = PairingGroup('SS512')
-            p = 730750818665451621361119245571504901405976559617
-            k = 16
-            chariot = Chariot(group, p, k)
-            attribute_universe = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-            n = 7  # Upper bound of size of threshold policies
-            public_params, master_secret_key = chariot.setup(attribute_universe, n)
-
-
-            attribute_set = [1, 2, 4, 5, 6, 7]
-            osk, private_key, secret_key = chariot.keygen(public_params, master_secret_key, attribute_set)
-
-
-            t = 6
-            policy = {1, 2, 3, 4, 5, 6, 7}
-            threshold_policy = ThresholdPolicy(t, policy)
-            HMAC_hashed_threshold_policy = chariot.request(threshold_policy, private_key)
-
-            outsourced_signature = chariot.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
-
-            message = "abcd"
-            signature = chariot.sign(public_params, private_key, message, outsourced_signature)
-
-            output = chariot.verify(public_params, secret_key, message, signature, threshold_policy)
-
-            success = output == 0
-            break
-        except EqualityDoesNotHold:
-            success = False
-            pass
-    print(f"Algorithm succeeded: {success}")
+    return total_time / repetitions, result
 
 
 
+def perform_bencharks(repetitions, security_parameter, attribute_universe, attribute_set, threshold_policy):
+    group = PairingGroup('SS512')
+    p = 730750818665451621361119245571504901405976559617
+    chariot = Chariot(group, p, security_parameter)
+    n = len(attribute_universe)  # Upper bound of size of threshold policies
+
+    avg_time, (public_params, master_secret_key) = benchmark(repetitions, chariot.setup, attribute_universe, n)
+    print(f"Average Setup time: {avg_time}")
+
+    avg_time, (osk, private_key, secret_key) = benchmark(repetitions, chariot.keygen, public_params, master_secret_key, attribute_set)
+    print(f"Average Keygen time: {avg_time}")
+
+    avg_time, HMAC_hashed_threshold_policy = benchmark(repetitions, chariot.request, threshold_policy, private_key)
+    print(f"Average Request time: {avg_time}")
+
+    avg_time, outsourced_signature = benchmark(repetitions, chariot.sign_out, public_params, osk, HMAC_hashed_threshold_policy)
+    print(f"Average SignOut time: {avg_time}")
+
+    message = "abcd"
+    avg_time, signature = benchmark(repetitions, chariot.sign, public_params, private_key, message, outsourced_signature)
+    print(f"Average Sign time: {avg_time}")
+
+    avg_time, output = benchmark(repetitions, chariot.verify, public_params, secret_key, message, signature, threshold_policy)
+    print(f"Average Verify time: {avg_time}")
 
 
+if __name__ == '__main__':
+    repetitions = 2
+    security_parameter = 16
+
+    attribute_universe = list([i for i in range(20)])
+    attribute_set = [i for i in range(20)]
+
+    t = 6
+    policy = {i for i in range(20)}
+    threshold_policy = ThresholdPolicy(t, policy)
+
+    perform_bencharks(repetitions, security_parameter, attribute_universe, attribute_set, threshold_policy)
