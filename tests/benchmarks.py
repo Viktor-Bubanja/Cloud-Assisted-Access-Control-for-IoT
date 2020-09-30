@@ -14,7 +14,7 @@ def benchmark(repetitions, method, *args):
     return total_time / repetitions, result
 
 
-def elliptic_curve1():
+def elliptic_curve1(repetitions, security_parameter, attribute_universe, attribute_set, threshold_policy):
     group = PairingGroup('SS512')
     p = 730750818665451621361119245571504901405976559617
     chariot = Chariot(group, p, security_parameter)
@@ -73,22 +73,27 @@ def elliptic_curve2():
     print(f"Average Verify time: {avg_time}")
 
 def perform_bencharks(repetitions, security_parameter, attribute_universe, attribute_set, threshold_policy):
-    # elliptic_curve1()
-    elliptic_curve2()
+    elliptic_curve1(repetitions, security_parameter, attribute_universe, attribute_set, threshold_policy)
+    # elliptic_curve2()
 
 
 if __name__ == '__main__':
-    repetitions = 10
+    repetitions = 1
 
-    attribute_universe = list([i for i in range(16)])
+    attribute_universe = list([i for i in range(10)])
     security_parameter = 8
-    attribute_set = [i for i in range(16)]
-    t = 8
-    policy = {i for i in range(8)}
+    attribute_set = [i for i in range(8)]
+    t = 6
+    policy = [i for i in range(7)]
 
     threshold_policy = ThresholdPolicy(t, policy)
 
-    perform_bencharks(repetitions, security_parameter, attribute_universe, attribute_set, threshold_policy)
+    perform_bencharks(
+        repetitions=repetitions,
+        security_parameter=security_parameter,
+        attribute_universe=attribute_universe,
+        attribute_set=attribute_set,
+        threshold_policy=threshold_policy)
 
 
 

@@ -24,6 +24,9 @@ class TestPolynomial(unittest.TestCase):
 
         self.assertEqual(factored_form, expanded_form)
 
+    def test_successfully_return_empty_list(self):
+        self.assertEqual(get_polynomial_coefficients([]), [])
+
 
 
 if __name__ == "__main__":
