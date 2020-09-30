@@ -11,7 +11,7 @@ from charm.schemes.CHARIOT.wrapper_classes.signatures import Signature, Outsourc
 from charm.schemes.CHARIOT.wrapper_classes.public_params import PublicParams
 from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
 from charm.schemes.CHARIOT.vector import Vector
-from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
+from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair, PairingGroup
 from hashlib import blake2b
 from itertools import combinations
 from functools import reduce
@@ -81,7 +81,7 @@ class Chariot:
         beta2 = msk.beta + beta1
         r = self.group.random(ZR)
 
-        hashed_attributes = tuple([self.calculate_HMAC(K, at) for at in attributes])
+        hashed_attributes = tuple([self.calculate_HMAC(K, at) for at in sorted(attributes)])
 
         osk_g1 = tuple([params.g ** (r / (msk.gamma + hashed_attribute))
                         for hashed_attribute in hashed_attributes])
@@ -106,7 +106,7 @@ class Chariot:
     def request(self, signing_policy: ThresholdPolicy, private_key: PrivateKey) -> ThresholdPolicy:
         # Need to store t and s on the IoT device to perform the Sign algorithm later.
         self.t = signing_policy.threshold
-        policy = signing_policy.policy
+        policy = sorted(signing_policy.policy)
         self.s = len(policy)
 
         K = private_key.K
@@ -343,3 +343,36 @@ def aggregate(x_array, p_array) -> int:
             p_array[l] = (p_array[j] ** exponent) - (p_array[l] ** exponent)
 
     return p_array[r - 1]
+
+
+if __name__ == '__main__':
+    security_parameter = 8  # The security level of the system. Must be > 0 and <= 512
+
+    # Choose one of the following elliptic curve groups to use
+
+    group = PairingGroup('SS512')
+    p = 730750818665451621361119245571504901405976559617
+
+    # group = PairingGroup('SS1024')
+    # p = 36203638728584889925158415861634051131656232976339194924022065306723188923966451762160327870969638730567198058600508960697138006366861790409776528385407283664860565239295291314844246909284597617282274074224254733917313218308080644731349763985110821627195514711746037056425804819692632040479575042834043863089
+
+    chariot = Chariot(group, p, security_parameter)
+
+    attribute_universe = list([i for i in range(10)])  # All possible attributes that can be used
+    attribute_set = [i for i in range(8)]  # Attributes of the device
+
+    # Upper bound on policy sizes
+    # Choose some value > len(attribute_set)
+    n = len(attribute_universe)
+
+    # Threshold value
+    # At least this many attributes must be matching between the device and the policy
+    t = 6
+
+    policy = [i for i in range(7)]  # The attributes that the device must have to be authenticated
+
+    threshold_policy = ThresholdPolicy(t, policy)
+
+    message = "abcd"  # Message to be signed. Choose some string.
+    output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
+    print(f"Authentication succeeded: {output}")
