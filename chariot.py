@@ -11,7 +11,7 @@ from charm.schemes.CHARIOT.wrapper_classes.signatures import Signature, Outsourc
 from charm.schemes.CHARIOT.wrapper_classes.public_params import PublicParams
 from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
 from charm.schemes.CHARIOT.vector import Vector
-from charm.toolbox.pairinggroup import ZR, G1, G2, pair
+from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair
 from hashlib import blake2b
 from itertools import combinations
 from functools import reduce
@@ -29,12 +29,11 @@ class Chariot:
     s, t = 0, 0
 
     def __init__(self, group, p, k):
-        assert k % 8 == 0
+        assert k % 8 == 0  # Needs to be divisible by 8 to express in terms of bytes
+        assert 0 < k <= 512  # The limit on the digest size of the hash function is 64 bytes
         self.group = group
-        self.p = p
         self.k = k
         self.identity_element = self.group.random(G1) ** p  # The elliptic curve's "point at infinity"
-
 
     def call(self, attribute_universe, attribute_set, threshold_policy: ThresholdPolicy, message, n):
         public_params, master_secret_key = self.setup(attribute_universe, n)
@@ -52,7 +51,6 @@ class Chariot:
         # Let g, h be two generators of G.
         g, h = self.group.random(G1), self.group.random(G1)
         alpha, beta, gamma = self.group.random(ZR), self.group.random(ZR), self.group.random(ZR)
-
         u = g ** beta
         vi = [g ** (alpha / (gamma ** i)) for i in range(n + 1)]
         hi = [h ** (alpha * (gamma ** i)) for i in range(n + 1)]
@@ -112,7 +110,7 @@ class Chariot:
         self.s = len(policy)
 
         K = private_key.K
-        hashed_policy = set([self.calculate_HMAC(K, at) for at in policy])
+        hashed_policy = [self.calculate_HMAC(K, at) for at in policy]
         return ThresholdPolicy(threshold=self.t, policy=hashed_policy)
 
 
@@ -132,7 +130,7 @@ class Chariot:
         # Find some set of size t of common attributes
         common_attributes = common_attributes[:t]
 
-        T1 = aggregate(list(osk.hashed_attributes), osk.g1)
+        T1 = aggregate(list(common_attributes), osk.g1[:t])
 
         remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
 
@@ -140,8 +138,9 @@ class Chariot:
         T2_b_coefficients.append(1)
 
         T2_dash = osk.h2
+
         for i in range(s - t):
-            T2_dash = T2_dash * (osk.h1[i + params.n - s + t - 1] ** T2_b_coefficients[i])
+            T2_dash *= osk.h1[i + params.n - s + t - 1] ** T2_b_coefficients[i]
 
         Hs = calculate_polynomial(threshold_policy.policy, params.hi)
 
@@ -305,7 +304,7 @@ def hash_message(digest_size: int, message: bytes) -> str:
 
 
 """
-Polynomials can be written in factored form: (x - a1)(x - a2)...(x - an) or in expanded form:
+Polynomials can be written in factored form: (x + a1)(x + a2)...(x + an) or in expanded form:
 b1*x^n + b2*x^n-1 + ... + bn.
 This function can be used to find the coefficients within the expanded form of a polynomial given its factored form.
 Given the list of solutions to the polynomial when it is set to equal 0  (i.e. a1 ... an in the factored form above),
