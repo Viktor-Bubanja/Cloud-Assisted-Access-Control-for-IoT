@@ -6,7 +6,7 @@ import operator
 from charm.schemes.CHARIOT.commitment import Commitment
 from charm.schemes.CHARIOT.exceptions.aggregate_failed import AggregateFailed
 from charm.schemes.CHARIOT.exceptions.equality_does_not_hold import EqualityDoesNotHold
-from charm.schemes.CHARIOT.exceptions.negative_attribute_found import NegativeAttributeFound
+from charm.schemes.CHARIOT.exceptions.invalid_attribute_found import InvalidAttributeFound
 from charm.schemes.CHARIOT.exceptions.not_enough_matching_attributes import NotEnoughMatchingAttributes
 from charm.schemes.CHARIOT.wrapper_classes.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
 from charm.schemes.CHARIOT.wrapper_classes.signatures import Signature, OutsourcedSignature
@@ -21,12 +21,13 @@ from functools import reduce
 HMAC_HASH_FUNC = 'sha256'
 UTF = 'utf-8'
 
-
 """
 CHARIOT2: Cloud-Assisted Access Control for the Internet of Things.
 CHARIOT2 is a threshold policy-based access control protocol that enables an IoT platform to verify credentials of 
 IoT devices based on their attributes.
 """
+
+
 class Chariot:
     s, t = 0, 0
 
@@ -38,6 +39,11 @@ class Chariot:
         self.identity_element = self.group.random(G1) ** p  # The elliptic curve's "point at infinity"
 
     def call(self, attribute_universe, attribute_set, threshold_policy: ThresholdPolicy, message, n):
+        if (len([i for i in attribute_universe + attribute_set + threshold_policy.policy if i < 0]) or
+                len(list(set(attribute_set).difference(attribute_universe))) > 0 or
+                len(list(set(threshold_policy.policy).difference(attribute_universe))) > 0):
+            raise InvalidAttributeFound
+
         public_params, master_secret_key = self.setup(attribute_universe, n)
         osk, private_key, secret_key = self.keygen(public_params, master_secret_key, attribute_set)
         HMAC_hashed_threshold_policy = self.request(threshold_policy, private_key)
@@ -49,10 +55,8 @@ class Chariot:
     """
     Responsible for initializing the public parameters of the protocol and the master secret key.
     """
-    def setup(self, attribute_universe, n) -> (PublicParams, MasterSecretKey):
-        if len([i for i in attribute_universe if i < 0]) > 0:
-            raise NegativeAttributeFound
 
+    def setup(self, attribute_universe, n) -> (PublicParams, MasterSecretKey):
         # Let g, h be two generators of G.
         g, h = self.group.random(G1), self.group.random(G1)
         alpha, beta, gamma = self.group.random(ZR), self.group.random(ZR), self.group.random(ZR)
@@ -75,15 +79,12 @@ class Chariot:
                              n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=g3),
                 MasterSecretKey(alpha=alpha, beta=beta, gamma=gamma))
 
-
     """
     Initializes the outsourcing key, the private key, and the secret key.
     """
-    def keygen(self, params, msk, attributes) -> (OutsourcingKey, PrivateKey, SecretKey):
-        if len([i for i in attributes if i < 0]) > 0:
-            raise NegativeAttributeFound
 
-        K = secrets.SystemRandom().randint(1, 2**16)  # Secure random key with 16 bits
+    def keygen(self, params, msk, attributes) -> (OutsourcingKey, PrivateKey, SecretKey):
+        K = secrets.SystemRandom().randint(1, 2 ** 16)  # Secure random key with 16 bits
         beta1 = self.group.random()
 
         beta2 = msk.beta + beta1
@@ -106,14 +107,12 @@ class Chariot:
                 PrivateKey(sk_h1, K),
                 SecretKey(K))
 
-
     """
     Given a threshold signing policy and a private key, calculates the HMAC of the attributes within the policy
     using the private key and returns the hashed threshold policy.
     """
+
     def request(self, signing_policy: ThresholdPolicy, private_key: PrivateKey) -> ThresholdPolicy:
-        if len([i for i in signing_policy.policy if i < 0]) > 0:
-            raise NegativeAttributeFound
         # Need to store t and s on the IoT device to perform the Sign algorithm later.
         self.t = signing_policy.threshold
         policy = sorted(signing_policy.policy)
@@ -123,12 +122,12 @@ class Chariot:
         hashed_policy = [self.calculate_HMAC(K, at) for at in policy]
         return ThresholdPolicy(threshold=self.t, policy=hashed_policy)
 
-
     """
     Given the public parameters, the outsourcing key, and the threshold policy, generates the outsourced signature.
     By operating on the HMAC-hashed attributes, no information about the attributes is exposed apart from the number
     of matching attributes between the policy and the device's attributes.
     """
+
     def sign_out(self, params: PublicParams, osk: OutsourcingKey,
                  threshold_policy: ThresholdPolicy) -> OutsourcedSignature:
         s = len(threshold_policy.policy)
@@ -193,11 +192,11 @@ class Chariot:
             g_s=g_s
         )
 
-
     """
     Using the outsourced signature returned from sign_out and the public parameters, private key, and message, outputs
     the signature for the IoT device.
     """
+
     def sign(self, params: PublicParams, private_key: PrivateKey, message: str,
              outsourced_signature: OutsourcedSignature) -> Signature:
         T2 = outsourced_signature.T2_dash * private_key.h
@@ -239,13 +238,13 @@ class Chariot:
 
         return Signature(C_T1=C_T1, C_T2=C_T2, C_theta=C_theta, pi_1=pi_1, pi_2=pi_2)
 
-
     """
     Given the public parameters, secret key, message, IoT device signature, and threshold policy, verifies whether the
     IoT device should be authenticated.
     Returns 0 if the device is authenticated.
     Returns 1 if the device is not authenticated.
     """
+
     def verify(self, params: PublicParams, secret_key: SecretKey, message: str, signature: Signature,
                threshold_policy: ThresholdPolicy) -> int:
 
@@ -261,26 +260,25 @@ class Chariot:
         for i in range(3):
             equality_1_left = pair(Hs, signature.C_T1[i])
             equality_1_right = (
-                pair(params.u, signature.C_theta[i]) *
-                pair(params.vi[params.n - self.s + self.t], signature.C_T2[i]) *
-                pair(pi_1_1, params.g1[i]) *
-                pair(pi_1_2, params.g2[i]) *
-                pair(pi_1_3, g_3_m[i])
+                    pair(params.u, signature.C_theta[i]) *
+                    pair(params.vi[params.n - self.s + self.t], signature.C_T2[i]) *
+                    pair(pi_1_1, params.g1[i]) *
+                    pair(pi_1_2, params.g2[i]) *
+                    pair(pi_1_3, g_3_m[i])
             )
 
             equality_2_left = pair(params.g, signature.C_theta[i])
             equality_2_right = (
-                pair(params.g, self.identity_element if i != 2 else params.hi[self.s - self.t]) *
-                pair(pi_2_1, params.g1[i]) *
-                pair(pi_2_2, params.g2[i]) *
-                pair(pi_2_3, g_3_m[i])
+                    pair(params.g, self.identity_element if i != 2 else params.hi[self.s - self.t]) *
+                    pair(pi_2_1, params.g1[i]) *
+                    pair(pi_2_2, params.g2[i]) *
+                    pair(pi_2_3, g_3_m[i])
             )
 
             if equality_1_left != equality_1_right or equality_2_left != equality_2_right:
                 return 1
 
         return 0
-
 
     def calculate_g3_m_vector(self, g3, message):
         hashed_message = hash_message(int(self.k / 8), bytes(message, UTF))
@@ -291,18 +289,21 @@ class Chariot:
 
         return g_3_m
 
-
     """
     Initializes a Charm ZR element (an int between 0 and Zr) from the HMAC of the given message and secret key.
     """
+
     def calculate_HMAC(self, secret_key: int, message: int):
         hashed_message = hmac.new(bytes(secret_key), bytes(message), HMAC_HASH_FUNC).digest()
         return self.group.init(ZR, int.from_bytes(hashed_message, byteorder=sys.byteorder))
+
 
 """
 Hashes a message (bytes) to the given digest size. Formats each of the returned bytes to contain all eight bits then
 returns a string containing all the bytes.
 """
+
+
 def hash_message(digest_size: int, message: bytes) -> str:
     hash_function = blake2b(digest_size=digest_size)
     hash_function.update(message)
@@ -323,6 +324,8 @@ This function can be used to find the coefficients within the expanded form of a
 Given the list of solutions to the polynomial when it is set to equal 0  (i.e. a1 ... an in the factored form above),
 this function returns the list of coefficients within the expanded form (b1 ... bn in the expanded form above).
 """
+
+
 def get_polynomial_coefficients(numbers) -> list:
     coefficients = []
     for i in range(len(numbers), 0, -1):
@@ -343,6 +346,8 @@ def calculate_polynomial(attributes, hi) -> int:
 Aggregate algorithm taken from the conference paper: Fully Collusion Secure Dynamic Broadcast Encryption with 
 Constant-Size Ciphertexts or Decryption Keys authored by Pascal Paillier and David Pointcheval.
 """
+
+
 def aggregate(x_array, p_array) -> int:
     p_array = list(p_array)
     if len(x_array) != len(p_array):
