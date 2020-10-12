@@ -25,8 +25,8 @@ Once installed, place the CHARIOT folder within the charm-dev/charm/schemes fold
 
 ### Parameters
 The input parameters required to initialise an instance of CHARIOT are: group, p, k.
-- Group is a pairing group within Charm that contains an elliptic curve and a pairing function. This is initialised like: group = PairingGroup(X) where X is the name of an elliptic curve offered within Charm. Currently, there are two possible options for super singular elliptic curves (required for symmetric bilinear pairing): 'SS512' and 'SS1024'. Important note: if more super singular elliptic curves become available within Charm in the future, it is essential that elliptic curves with at least 256 bits are chosen because attributes are hashed with SHA256 and the hash of the attributes must be within the Galois field with base p where p is the base field of the chosen elliptic curve.
-- p is the prime number that defines the base field of the elliptic curve specified within the chosen group.
+- Group is a pairing group within Charm that contains an elliptic curve and a pairing function. This is initialised like: group = PairingGroup(X) where X is the name of an elliptic curve offered within Charm. Currently, there are two possible options for super singular elliptic curves (required for symmetric bilinear pairing): 'SS512' and 'SS1024'. Important note: if more super singular elliptic curves become available within Charm in the future, it is essential that elliptic curves with at least 256 bits are chosen because attributes are hashed with SHA256 and the hash of the attributes must be within the base field of the elliptic curve.
+- p is the order of the Galois field the elliptic curve is defined on (i.e. the number of points in the elliptic curve)
 - k is the security parameter of CHARIOT and defines the length in bits of the hashed message.
 
 The input parameters to the call function within CHARIOT are: attribute universe, attribute set, threshold policy, message, and n.
