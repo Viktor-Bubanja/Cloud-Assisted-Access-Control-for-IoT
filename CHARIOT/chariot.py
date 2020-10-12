@@ -27,7 +27,6 @@ CHARIOT2 is a threshold policy-based access control protocol that enables an IoT
 IoT devices based on their attributes.
 """
 
-
 class Chariot:
     s, t = 0, 0
 
@@ -56,7 +55,7 @@ class Chariot:
     Responsible for initializing the public parameters of the protocol and the master secret key.
     """
 
-    def setup(self, attribute_universe, n) -> (PublicParams, MasterSecretKey):
+    def setup(self, attribute_universe: list, n: int) -> (PublicParams, MasterSecretKey):
         # Let g, h be two generators of G.
         g, h = self.group.random(G1), self.group.random(G1)
         alpha, beta, gamma = self.group.random(ZR), self.group.random(ZR), self.group.random(ZR)
@@ -79,11 +78,12 @@ class Chariot:
                              n=n, g=g, h=h, u=u, vi=vi, hi=hi, g1=g1, g2=g2, g3=g3),
                 MasterSecretKey(alpha=alpha, beta=beta, gamma=gamma))
 
+
     """
     Initializes the outsourcing key, the private key, and the secret key.
     """
 
-    def keygen(self, params, msk, attributes) -> (OutsourcingKey, PrivateKey, SecretKey):
+    def keygen(self, params: PublicParams, msk: MasterSecretKey, attributes: list) -> (OutsourcingKey, PrivateKey, SecretKey):
         K = secrets.SystemRandom().randint(1, 2 ** 16)  # Secure random key with 16 bits
         beta1 = self.group.random()
 
@@ -107,6 +107,7 @@ class Chariot:
                 PrivateKey(sk_h1, K),
                 SecretKey(K))
 
+
     """
     Given a threshold signing policy and a private key, calculates the HMAC of the attributes within the policy
     using the private key and returns the hashed threshold policy.
@@ -121,6 +122,7 @@ class Chariot:
         K = private_key.K
         hashed_policy = [self.calculate_HMAC(K, at) for at in policy]
         return ThresholdPolicy(threshold=self.t, policy=hashed_policy)
+
 
     """
     Given the public parameters, the outsourcing key, and the threshold policy, generates the outsourced signature.
@@ -154,7 +156,7 @@ class Chariot:
         for i in range(s - t):
             T2_dash *= osk.h1[i + params.n - s + t - 1] ** T2_b_coefficients[i]
 
-        Hs = calculate_polynomial(threshold_policy.policy, params.hi)
+        Hs = calculate_Hs_polynomial(threshold_policy.policy, params.hi)
 
         equality_term1 = pair(T1, Hs)
         equality_term2 = pair(params.u * osk.g2, params.hi[s - t])
@@ -238,6 +240,7 @@ class Chariot:
 
         return Signature(C_T1=C_T1, C_T2=C_T2, C_theta=C_theta, pi_1=pi_1, pi_2=pi_2)
 
+
     """
     Given the public parameters, secret key, message, IoT device signature, and threshold policy, verifies whether the
     IoT device should be authenticated.
@@ -252,7 +255,7 @@ class Chariot:
 
         hashed_policy = set([self.calculate_HMAC(secret_key.K, at) for at in threshold_policy.policy])
 
-        Hs = calculate_polynomial(hashed_policy, params.hi)
+        Hs = calculate_Hs_polynomial(hashed_policy, params.hi)
 
         pi_1_1, pi_1_2, pi_1_3 = signature.pi_1.elements
         pi_2_1, pi_2_2, pi_2_3 = signature.pi_2.elements
@@ -325,7 +328,6 @@ Given the list of solutions to the polynomial when it is set to equal 0  (i.e. a
 this function returns the list of coefficients within the expanded form (b1 ... bn in the expanded form above).
 """
 
-
 def get_polynomial_coefficients(numbers) -> list:
     coefficients = []
     for i in range(len(numbers), 0, -1):
@@ -335,11 +337,14 @@ def get_polynomial_coefficients(numbers) -> list:
         coefficients.append(total)
     return coefficients
 
+""""
+Function specifically for calculating the HS polynomial within SignOut and Verify
+"""
 
-def calculate_polynomial(attributes, hi) -> int:
+def calculate_Hs_polynomial(attributes, hi) -> int:
     Hs_b_coefficients = get_polynomial_coefficients(attributes)
     Hs_b_coefficients.append(1)
-    return reduce(operator.mul, [hi[i] * Hs_b_coefficients[i] for i in range(len(Hs_b_coefficients))])
+    return reduce(operator.mul, [hi[i] * Hs_b_coefficients[i] for i in range(len(Hs_b_coefficients))], 1)
 
 
 """
@@ -362,7 +367,8 @@ def aggregate(x_array, p_array) -> int:
     return p_array[r - 1]
 
 
-if __name__ == '__main__':
+def main():
+
     # The security level of the system. Must be divisible by 8 and > 0 and <= 512
     security_parameter = 8
 
@@ -393,3 +399,7 @@ if __name__ == '__main__':
     message = "abcd"  # Message to be signed. Choose some string.
     output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
     print(f"Authentication succeeded: {output}")
+
+
+if __name__ == '__main__':
+    main()
