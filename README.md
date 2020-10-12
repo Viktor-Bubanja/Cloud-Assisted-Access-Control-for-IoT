@@ -15,4 +15,6 @@ Once installed, place the CHARIOT folder within the charm-dev/charm/schemes fold
 
 ## Running
 
-To run the prototype implementation, run the chariot.py module. To run the benchmarking, run benchmarks/benchmarks.py. To run the tests, right-click on the test folder and click "Run 'Unittests in test'". 
+- To run the prototype implementation, run the chariot.py module.
+- To run the benchmarking, run benchmarks/benchmarks.py.
+- To run the tests, right-click on the test folder and click "Run 'Unittests in test'". 
