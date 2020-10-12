@@ -1,29 +1,30 @@
 import unittest
 from charm.schemes.CHARIOT.chariot import Chariot
+from charm.schemes.CHARIOT.exceptions.aggregate_failed import AggregateFailed
 from charm.schemes.CHARIOT.exceptions.not_enough_matching_attributes import NotEnoughMatchingAttributes
+from charm.schemes.CHARIOT.wrapper_classes.key_wrappers import PrivateKey
 from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
 from charm.toolbox.pairinggroup import PairingGroup
 
 group = PairingGroup('SS512')
 p = 730750818665451621361119245571504901405976559617
 k = 16
+t = 6
 attribute_universe = list([i for i in range(20)])
 n = len(attribute_universe)
+chariot = Chariot(group, p, k)
 
 class TestChariot(unittest.TestCase):
 
     def test_t_equal_to_size_of_policy_succeeds(self):
-        chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(6)]
         policy = [i for i in range(6)]
-        t = 6
         threshold_policy = ThresholdPolicy(t, policy)
         message = "abcd"
         output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
         self.assertTrue(output)
 
     def test_t_smaller_than_size_of_policy_succeeds(self):
-        chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(6)]
         policy = [i for i in range(6)]
         t = 2
@@ -33,7 +34,6 @@ class TestChariot(unittest.TestCase):
         self.assertTrue(output)
 
     def test_attribute_set_bigger_than_policy_succeeds(self):
-        chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(10)]
         policy = [i for i in range(6)]
         t = 3
@@ -44,29 +44,23 @@ class TestChariot(unittest.TestCase):
 
     def test_too_few_matching_attributes_raises_exception(self):
         with self.assertRaises(NotEnoughMatchingAttributes):
-            chariot = Chariot(group, p, k)
             attribute_set = [1 for _ in range(6)]
             policy = [i for i in range(6)]
-            t = 6
             threshold_policy = ThresholdPolicy(t, policy)
             message = "abcd"
             chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
 
     def test_too_few_attributes_raises_exception(self):
         with self.assertRaises(NotEnoughMatchingAttributes):
-            chariot = Chariot(group, p, k)
             attribute_set = [1, 2, 3]
             policy = [i for i in range(6)]
-            t = 6
             threshold_policy = ThresholdPolicy(t, policy)
             message = "abcd"
             chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
 
     def test_empty_message_succeeds(self):
-        chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(10)]
         policy = [i for i in range(6)]
-        t = 6
         threshold_policy = ThresholdPolicy(t, policy)
         message = ""
         output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
@@ -85,20 +79,16 @@ class TestChariot(unittest.TestCase):
         self.assertTrue(output)
 
     def test_reverse_order_attribute_set_succeeds(self):
-        chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(6, -1, -1)]
         policy = [i for i in range(6)]
-        t = 6
         threshold_policy = ThresholdPolicy(t, policy)
         message = "abcd"
         output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
         self.assertTrue(output)
 
     def test_reverse_order_policy_succeeds(self):
-        chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(6)]
         policy = [i for i in range(6, -1, -1)]
-        t = 6
         threshold_policy = ThresholdPolicy(t, policy)
         message = "abcd"
         output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
@@ -117,11 +107,47 @@ class TestChariot(unittest.TestCase):
         chariot = Chariot(group, p, k)
         attribute_set = [i for i in range(6)]
         policy = [i for i in range(6)]
-        t = 6
         threshold_policy = ThresholdPolicy(t, policy)
         message = "abcd"
         output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
         self.assertTrue(output)
+
+    def test_keygen_hashes_attributes(self):
+        attribute_set = [i for i in range(6)]
+        params, msk = chariot.setup(attribute_universe, n)
+        osk, private_key, _ = chariot.keygen(params, msk, attribute_set)
+        print(private_key)
+        self.assertNotEqual(osk.hashed_attributes, attribute_set)
+
+    def test_keygen_private_key_h_is_Element(self):
+        attribute_set = [i for i in range(6)]
+        params, msk = chariot.setup(attribute_universe, n)
+        osk, private_key, _ = chariot.keygen(params, msk, attribute_set)
+        self.assertTrue(group.ismember(private_key.h))
+
+    def test_request_keeps_same_threshold(self):
+        threshold = 5
+        policy = ThresholdPolicy(threshold, [])
+        threshold_policy = chariot.request(policy, PrivateKey(0, 0))
+        self.assertEqual(threshold, threshold_policy.threshold)
+
+    def test_noisy_communication_fails_equality_check(self):
+        attribute_set = [i for i in range(6)]
+        policy_attributes = [i for i in range(6)]
+        policy = ThresholdPolicy(t, policy_attributes)
+        message = "sgsf"
+        public_params, master_secret_key = chariot.setup(attribute_universe, n)
+        osk, private_key, secret_key = chariot.keygen(public_params, master_secret_key, attribute_set)
+        HMAC_hashed_threshold_policy = chariot.request(policy, private_key)
+        outsourced_signature = chariot.sign_out(public_params, osk, HMAC_hashed_threshold_policy)
+        signature = chariot.sign(public_params, private_key, message, outsourced_signature)
+        noise = 1
+        # Adding noise to the transferred secret key
+        # i.e. Simulating a noisy signal
+        secret_key.K += noise
+        verified = chariot.verify(public_params, secret_key, message, signature, policy)
+        self.assertNotEqual(0, verified)
+
 
     def test_k_equal_0_throws_exception(self):
         with self.assertRaises(Exception):

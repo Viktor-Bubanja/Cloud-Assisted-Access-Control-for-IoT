@@ -5,8 +5,6 @@ class Vector:
     # Element-wise multiplication
     def dot(self, v2):
         assert len(self.elements) == len(v2.elements)
-        for i, j in zip(self.elements, v2.elements):
-            a = i * j
         return Vector([i * j for i, j in zip(self.elements, v2.elements)])
 
     # Element-wise exponentiation

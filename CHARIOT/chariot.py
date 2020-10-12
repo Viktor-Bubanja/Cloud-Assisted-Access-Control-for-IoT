@@ -4,6 +4,7 @@ import hmac
 import operator
 
 from charm.schemes.CHARIOT.commitment import Commitment
+from charm.schemes.CHARIOT.exceptions.aggregate_failed import AggregateFailed
 from charm.schemes.CHARIOT.exceptions.equality_does_not_hold import EqualityDoesNotHold
 from charm.schemes.CHARIOT.exceptions.not_enough_matching_attributes import NotEnoughMatchingAttributes
 from charm.schemes.CHARIOT.wrapper_classes.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
@@ -75,7 +76,7 @@ class Chariot:
     Initializes the outsourcing key, the private key, and the secret key.
     """
     def keygen(self, params, msk, attributes) -> (OutsourcingKey, PrivateKey, SecretKey):
-        K = secrets.SystemRandom().randint(1, 100)  # Secure random key
+        K = secrets.SystemRandom().randint(1, 2**16)  # Secure random key with 16 bits
         beta1 = self.group.random()
 
         beta2 = msk.beta + beta1
@@ -131,6 +132,10 @@ class Chariot:
         common_attributes = common_attributes[:t]
 
         T1 = aggregate(list(common_attributes), osk.g1[:t])
+        print(T1)
+
+        if T1 == -1:  # -1 is the error symbol of Aggregate
+            raise AggregateFailed
 
         remaining_attributes = [at for at in threshold_policy.policy if at not in common_attributes]
 
@@ -185,9 +190,9 @@ class Chariot:
     Using the outsourced signature returned from sign_out and the public parameters, private key, and message, outputs
     the signature for the IoT device.
     """
-    def sign(self, params: PublicParams, sk: PrivateKey, message: str,
+    def sign(self, params: PublicParams, private_key: PrivateKey, message: str,
              outsourced_signature: OutsourcedSignature) -> Signature:
-        T2 = outsourced_signature.T2_dash * sk.h
+        T2 = outsourced_signature.T2_dash * private_key.h
         T1 = outsourced_signature.C_T1_dash.theta
 
         theta = params.hi[self.s - self.t]
@@ -206,7 +211,7 @@ class Chariot:
         C_T1 = outsourced_signature.C_T1_dash.calculate().dot(g_3_m.exp(t1))
 
         C_T2 = outsourced_signature.C_T2_dash.calculate().dot(
-            Vector([1, 1, sk.h])).dot(
+            Vector([1, 1, private_key.h])).dot(
             g_3_m.exp(t2)
         )
 
@@ -238,6 +243,7 @@ class Chariot:
 
         g_3_m = self.calculate_g3_m_vector(params.g3, message)
 
+        print(secret_key)
         hashed_policy = set([self.calculate_HMAC(secret_key.K, at) for at in threshold_policy.policy])
 
         Hs = calculate_polynomial(hashed_policy, params.hi)
@@ -341,7 +347,6 @@ def aggregate(x_array, p_array) -> int:
                 return -1
             exponent = 1 / (x_array[l] - x_array[j])
             p_array[l] = (p_array[j] ** exponent) - (p_array[l] ** exponent)
-
     return p_array[r - 1]
 
 
