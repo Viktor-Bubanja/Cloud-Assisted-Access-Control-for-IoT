@@ -346,10 +346,10 @@ def aggregate(x_array, p_array) -> int:
 
 
 if __name__ == '__main__':
-    security_parameter = 8  # The security level of the system. Must be > 0 and <= 512
+    # The security level of the system. Must be divisible by 8 and > 0 and <= 512
+    security_parameter = 8
 
     # Choose one of the following elliptic curve groups to use
-
     group = PairingGroup('SS512')
     p = 730750818665451621361119245571504901405976559617
 
