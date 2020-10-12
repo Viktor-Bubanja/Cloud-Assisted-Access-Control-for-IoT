@@ -3,7 +3,7 @@ from charm.schemes.CHARIOT.vector import Vector
 
 @dataclass
 class PublicParams:
-    attribute_universe: set
+    attribute_universe: list
     n: int
     g: int
     h: int
