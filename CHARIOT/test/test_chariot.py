@@ -1,6 +1,7 @@
 import unittest
 from charm.schemes.CHARIOT.chariot import Chariot
 from charm.schemes.CHARIOT.exceptions.aggregate_failed import AggregateFailed
+from charm.schemes.CHARIOT.exceptions.negative_attribute_found import NegativeAttributeFound
 from charm.schemes.CHARIOT.exceptions.not_enough_matching_attributes import NotEnoughMatchingAttributes
 from charm.schemes.CHARIOT.wrapper_classes.key_wrappers import PrivateKey
 from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
@@ -65,6 +66,15 @@ class TestChariot(unittest.TestCase):
         message = ""
         output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
         self.assertTrue(output)
+
+    def test_negative_attributes_raises_exception(self):
+        with self.assertRaises(NegativeAttributeFound):
+            attribute_set = [-i for i in range(10)]
+            policy = [-i for i in range(6)]
+            threshold_policy = ThresholdPolicy(t, policy)
+            message = "asdfd"
+            output = chariot.call(attribute_universe, attribute_set, threshold_policy, message, n)
+            self.assertTrue(output)
 
     def test_alternate_elliptic_curve_group(self):
         group = PairingGroup('SS1024')

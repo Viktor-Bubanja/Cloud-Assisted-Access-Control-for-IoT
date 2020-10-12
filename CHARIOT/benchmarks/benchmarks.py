@@ -45,7 +45,7 @@ def perform_bencharks(repetitions, security_parameter, attribute_universe, attri
 
 
 if __name__ == '__main__':
-    repetitions = 1
+    repetitions = 5
 
     attribute_universe = list([i for i in range(10)])
     security_parameter = 8

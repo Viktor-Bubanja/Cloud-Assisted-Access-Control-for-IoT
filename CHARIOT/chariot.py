@@ -6,6 +6,7 @@ import operator
 from charm.schemes.CHARIOT.commitment import Commitment
 from charm.schemes.CHARIOT.exceptions.aggregate_failed import AggregateFailed
 from charm.schemes.CHARIOT.exceptions.equality_does_not_hold import EqualityDoesNotHold
+from charm.schemes.CHARIOT.exceptions.negative_attribute_found import NegativeAttributeFound
 from charm.schemes.CHARIOT.exceptions.not_enough_matching_attributes import NotEnoughMatchingAttributes
 from charm.schemes.CHARIOT.wrapper_classes.key_wrappers import MasterSecretKey, OutsourcingKey, PrivateKey, SecretKey
 from charm.schemes.CHARIOT.wrapper_classes.signatures import Signature, OutsourcedSignature
@@ -49,6 +50,9 @@ class Chariot:
     Responsible for initializing the public parameters of the protocol and the master secret key.
     """
     def setup(self, attribute_universe, n) -> (PublicParams, MasterSecretKey):
+        if len([i for i in attribute_universe if i < 0]) > 0:
+            raise NegativeAttributeFound
+
         # Let g, h be two generators of G.
         g, h = self.group.random(G1), self.group.random(G1)
         alpha, beta, gamma = self.group.random(ZR), self.group.random(ZR), self.group.random(ZR)
@@ -76,6 +80,9 @@ class Chariot:
     Initializes the outsourcing key, the private key, and the secret key.
     """
     def keygen(self, params, msk, attributes) -> (OutsourcingKey, PrivateKey, SecretKey):
+        if len([i for i in attributes if i < 0]) > 0:
+            raise NegativeAttributeFound
+
         K = secrets.SystemRandom().randint(1, 2**16)  # Secure random key with 16 bits
         beta1 = self.group.random()
 
@@ -105,6 +112,8 @@ class Chariot:
     using the private key and returns the hashed threshold policy.
     """
     def request(self, signing_policy: ThresholdPolicy, private_key: PrivateKey) -> ThresholdPolicy:
+        if len([i for i in signing_policy.policy if i < 0]) > 0:
+            raise NegativeAttributeFound
         # Need to store t and s on the IoT device to perform the Sign algorithm later.
         self.t = signing_policy.threshold
         policy = sorted(signing_policy.policy)
@@ -132,7 +141,6 @@ class Chariot:
         common_attributes = common_attributes[:t]
 
         T1 = aggregate(list(common_attributes), osk.g1[:t])
-        print(T1)
 
         if T1 == -1:  # -1 is the error symbol of Aggregate
             raise AggregateFailed
@@ -243,7 +251,6 @@ class Chariot:
 
         g_3_m = self.calculate_g3_m_vector(params.g3, message)
 
-        print(secret_key)
         hashed_policy = set([self.calculate_HMAC(secret_key.K, at) for at in threshold_policy.policy])
 
         Hs = calculate_polynomial(hashed_policy, params.hi)

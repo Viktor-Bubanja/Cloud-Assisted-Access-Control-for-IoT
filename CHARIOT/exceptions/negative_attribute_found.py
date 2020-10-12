@@ -1,0 +1,2 @@
+class NegativeAttributeFound(Exception):
+    pass
