@@ -51,6 +51,7 @@ class Chariot:
         verified = self.verify(public_params, secret_key, message, signature, threshold_policy)
         return verified == 0
 
+
     """
     Responsible for initializing the public parameters of the protocol and the master secret key.
     """
@@ -306,7 +307,6 @@ Hashes a message (bytes) to the given digest size. Formats each of the returned 
 returns a string containing all the bytes.
 """
 
-
 def hash_message(digest_size: int, message: bytes) -> str:
     hash_function = blake2b(digest_size=digest_size)
     hash_function.update(message)
@@ -352,7 +352,6 @@ Aggregate algorithm taken from the conference paper: Fully Collusion Secure Dyna
 Constant-Size Ciphertexts or Decryption Keys authored by Pascal Paillier and David Pointcheval.
 """
 
-
 def aggregate(x_array, p_array) -> int:
     p_array = list(p_array)
     if len(x_array) != len(p_array):
@@ -368,8 +367,8 @@ def aggregate(x_array, p_array) -> int:
 
 
 def main():
-
-    # The security level of the system. Must be divisible by 8 and > 0 and <= 512
+    # The security parameter of CHARIOT. Defines the digest size of the hashed message.
+    # Must be divisible by 8 and > 0 and <= 512
     security_parameter = 8
 
     # Choose one of the following elliptic curve groups to use
