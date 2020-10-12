@@ -11,7 +11,7 @@ from charm.schemes.CHARIOT.wrapper_classes.signatures import Signature, Outsourc
 from charm.schemes.CHARIOT.wrapper_classes.public_params import PublicParams
 from charm.schemes.CHARIOT.wrapper_classes.threshold_policy import ThresholdPolicy
 from charm.schemes.CHARIOT.vector import Vector
-from charm.toolbox.pairinggroup import ZR, G1, G2, GT, pair, PairingGroup
+from charm.toolbox.pairinggroup import ZR, G1, G2, pair, PairingGroup
 from hashlib import blake2b
 from itertools import combinations
 from functools import reduce
@@ -21,8 +21,8 @@ UTF = 'utf-8'
 
 
 """
-CHARIOT: Cloud-Assisted Access Control for the Internet of Things.
-CHARIOT is a threshold policy-based access control protocol that enables an IoT platform to verify credentials of 
+CHARIOT2: Cloud-Assisted Access Control for the Internet of Things.
+CHARIOT2 is a threshold policy-based access control protocol that enables an IoT platform to verify credentials of 
 IoT devices based on their attributes.
 """
 class Chariot:
