@@ -1,5 +1,4 @@
 *
-!CHARIOT
-!CHARIOT/test
+!CHARIOT/*
 !README.md
 !.gitignore
