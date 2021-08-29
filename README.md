@@ -3,11 +3,13 @@
 CHARIOT (Cloud-Assisted Access Control for the Internet of Things) is a policy-based access control protocol suitable for an IoT environment.
 Computationally intensive signature generation is offloaded from the IoT device to an untrusted, powerful cloud server. This is vital since IoT devices are severely constrained in memory and computational power.
 
-(link to original paper: https://www.researchgate.net/publication/329061206_CHARIOT_Cloud-Assisted_Access_Control_for_the_Internet_of_Things).
-
 This repository contains a prototype implementation of CHARIOT for the purposes of testing, benchmarking, and ultimately validating the protocol.
 
 CHARIOT utilises elliptic curve billinear group pairings, a threshold attribute-based signature (ABS) scheme, and Groth-Sahai non-interactive zero-knowledge proof systems.
+
+Original paper: https://www.researchgate.net/publication/329061206_CHARIOT_Cloud-Assisted_Access_Control_for_the_Internet_of_Things
+
+My Honours report: [CHARIOT-report.pdf](https://github.com/Viktor-Bubanja/Cloud-Assisted-Access-Control-for-IoT/files/7071798/CHARIOT-report.pdf)
 
 
 ## Installation
